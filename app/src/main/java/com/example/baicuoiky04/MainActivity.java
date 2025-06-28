@@ -154,8 +154,8 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
         } else if (itemId == R.id.nav_saved) {
             selectedFragment = new SavedListingsFragment();
         } else if (itemId == R.id.nav_manage) {
-            Toast.makeText(this, "Chức năng Quản lý sắp ra mắt", Toast.LENGTH_SHORT).show();
-            return true;
+            // SỬA LẠI ĐOẠN NÀY
+            selectedFragment = new ManageListingsFragment();
         } else if (itemId == R.id.nav_profile) {
             selectedFragment = new ProfileFragment();
         }
@@ -208,6 +208,7 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
         this.currentMaxPrice = maxPrice;
         fetchListings();
     }
+
 
     private void fetchListings() {
         progressBar.setVisibility(View.VISIBLE);
