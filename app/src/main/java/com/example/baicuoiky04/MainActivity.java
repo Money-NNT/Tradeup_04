@@ -2,6 +2,8 @@ package com.example.baicuoiky04;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
@@ -17,6 +19,7 @@ import androidx.fragment.app.FragmentTransaction;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -28,6 +31,7 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity implements FilterBottomSheetFragment.FilterListener, BottomNavigationView.OnItemSelectedListener {
 
@@ -38,6 +42,7 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
 
     private RecyclerView recyclerViewListings;
     private FrameLayout fragmentContainer;
+    private AppBarLayout appBarLayout;
     private ListingAdapter listingAdapter;
     private ProgressBar progressBar;
     private SearchView searchView;
@@ -53,6 +58,9 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
     private float currentMinPrice = 0;
     private float currentMaxPrice = 50000000;
 
+    private final Handler searchHandler = new Handler(Looper.getMainLooper());
+    private Runnable searchRunnable;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -62,7 +70,6 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
         db = FirebaseFirestore.getInstance();
 
         checkUserStatus();
-
         initViews();
         initRecyclerView();
         setupListeners();
@@ -84,16 +91,14 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
     private void checkUserStatus() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) {
-            Log.d(TAG, "checkUserStatus: No user logged in. Navigating to LoginActivity.");
             goToLoginActivity();
-        } else {
-            Log.d(TAG, "checkUserStatus: User " + currentUser.getUid() + " is logged in.");
         }
     }
 
     private void initViews() {
         recyclerViewListings = findViewById(R.id.recyclerViewListings);
         fragmentContainer = findViewById(R.id.fragment_container);
+        appBarLayout = findViewById(R.id.appBarLayout);
         progressBar = findViewById(R.id.progressBar);
         searchView = findViewById(R.id.searchView);
         btnFilter = findViewById(R.id.btnFilter);
@@ -110,14 +115,11 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
 
     private void setupListeners() {
         btnFilter.setOnClickListener(v -> openFilterDialog());
-
         fabAddItem.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, AddListingActivity.class)));
-
         bottomNavigationView.setOnItemSelectedListener(this);
-        bottomNavigationView.setBackground(null); // For FAB notch
+        bottomNavigationView.setBackground(null);
 
         listingAdapter.setOnItemClickListener(listing -> {
-            Log.d(TAG, "Item clicked: " + listing.getListingId());
             Intent intent = new Intent(MainActivity.this, ListingDetailActivity.class);
             intent.putExtra("LISTING_ID", listing.getListingId());
             startActivity(intent);
@@ -126,7 +128,8 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
-                currentKeyword = query;
+                searchHandler.removeCallbacks(searchRunnable);
+                currentKeyword = query.toLowerCase(Locale.ROOT).trim();
                 fetchListings();
                 searchView.clearFocus();
                 return true;
@@ -134,10 +137,12 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
 
             @Override
             public boolean onQueryTextChange(String newText) {
-                if (newText.isEmpty()) {
-                    currentKeyword = "";
+                searchHandler.removeCallbacks(searchRunnable);
+                searchRunnable = () -> {
+                    currentKeyword = newText.toLowerCase(Locale.ROOT).trim();
                     fetchListings();
-                }
+                };
+                searchHandler.postDelayed(searchRunnable, 500);
                 return true;
             }
         });
@@ -154,7 +159,6 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
         } else if (itemId == R.id.nav_saved) {
             selectedFragment = new SavedListingsFragment();
         } else if (itemId == R.id.nav_manage) {
-            // SỬA LẠI ĐOẠN NÀY
             selectedFragment = new ManageListingsFragment();
         } else if (itemId == R.id.nav_profile) {
             selectedFragment = new ProfileFragment();
@@ -168,8 +172,7 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
 
     private void loadFragment(Fragment fragment) {
         recyclerViewListings.setVisibility(View.GONE);
-        searchView.setVisibility(View.GONE);
-        btnFilter.setVisibility(View.GONE);
+        appBarLayout.setVisibility(View.GONE);
         fragmentContainer.setVisibility(View.VISIBLE);
 
         FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
@@ -179,9 +182,8 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
 
     private void showHomeContent() {
         fragmentContainer.setVisibility(View.GONE);
+        appBarLayout.setVisibility(View.VISIBLE);
         recyclerViewListings.setVisibility(View.VISIBLE);
-        searchView.setVisibility(View.VISIBLE);
-        btnFilter.setVisibility(View.VISIBLE);
 
         getSupportFragmentManager().getFragments().forEach(fragment ->
                 getSupportFragmentManager().beginTransaction().remove(fragment).commit()
@@ -201,7 +203,6 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
 
     @Override
     public void onFilterApplied(String sortBy, boolean isAscending, float minPrice, float maxPrice) {
-        Log.d(TAG, "onFilterApplied: New filters received.");
         this.currentSortBy = sortBy;
         this.currentSortDirection = isAscending ? Query.Direction.ASCENDING : Query.Direction.DESCENDING;
         this.currentMinPrice = minPrice;
@@ -209,21 +210,19 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
         fetchListings();
     }
 
-
     private void fetchListings() {
         progressBar.setVisibility(View.VISIBLE);
-        Log.d(TAG, "fetchListings: Building query with current filters...");
+        Log.d(TAG, "Đang lấy danh sách với từ khóa: '" + currentKeyword + "'");
 
         Query query = db.collection("listings").whereEqualTo("status", "available");
 
         if (!currentKeyword.isEmpty()) {
-            query = query.whereArrayContains("tags", currentKeyword.toLowerCase());
+            query = query.whereArrayContains("tags", currentKeyword);
         }
 
         if (currentMinPrice > 0) {
             query = query.whereGreaterThanOrEqualTo("price", currentMinPrice);
         }
-
         if (currentMaxPrice < 50000000) {
             query = query.whereLessThanOrEqualTo("price", currentMaxPrice);
         }
@@ -245,13 +244,12 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
                         for (QueryDocumentSnapshot document : task.getResult()) {
                             listingList.add(document.toObject(DataModels.Listing.class));
                         }
-                        Log.d(TAG, "fetchListings: Success! Fetched " + listingList.size() + " listings.");
-                        listingAdapter.notifyDataSetChanged();
+                        listingAdapter.notifyDataSetChanged(); // Đã thay từ 'adapter' thành 'listingAdapter'
                         if (listingList.isEmpty()) {
                             Toast.makeText(this, "Không tìm thấy sản phẩm nào.", Toast.LENGTH_SHORT).show();
                         }
                     } else {
-                        Log.e(TAG, "Error getting documents: ", task.getException());
+                        Log.e(TAG, "Lỗi khi lấy tài liệu: ", task.getException());
                         Toast.makeText(MainActivity.this, "Lỗi tải dữ liệu: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 });

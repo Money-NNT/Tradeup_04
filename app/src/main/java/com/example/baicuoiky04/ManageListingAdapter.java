@@ -1,6 +1,7 @@
 package com.example.baicuoiky04;
 
 import android.content.Context;
+import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -9,6 +10,7 @@ import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import java.text.NumberFormat;
@@ -71,7 +73,23 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
             NumberFormat formatter = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
             textViewPrice.setText(formatter.format(listing.getPrice()));
 
-            textViewStatus.setText(listing.getStatus().toUpperCase());
+            String status = listing.getStatus();
+
+            // ================== LOGIC MỚI CHO MÀU SẮC ==================
+            if (status.equalsIgnoreCase("available")) {
+                textViewStatus.setText("ĐANG BÁN");
+                textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.status_available)));
+            } else if (status.equalsIgnoreCase("sold")) {
+                textViewStatus.setText("ĐÃ BÁN");
+                textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.status_sold)));
+            } else if (status.equalsIgnoreCase("paused")) {
+                textViewStatus.setText("TẠM DỪNG");
+                textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.status_paused)));
+            } else {
+                textViewStatus.setText(status.toUpperCase());
+                textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.light_gray)));
+            }
+            // ================== KẾT THÚC LOGIC MỚI ==================
 
             if (listing.getImageUrls() != null && !listing.getImageUrls().isEmpty()) {
                 Glide.with(context).load(listing.getImageUrls().get(0)).into(imageViewProduct);

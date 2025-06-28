@@ -1,5 +1,6 @@
 package com.example.baicuoiky04;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -62,7 +63,10 @@ public class ManageListingsFragment extends Fragment {
         ManageListingAdapter.OnActionListener listener = new ManageListingAdapter.OnActionListener() {
             @Override
             public void onEdit(DataModels.Listing listing) {
-                Toast.makeText(getContext(), "Chức năng Sửa đang phát triển", Toast.LENGTH_SHORT).show();
+                // SỬA LẠI ĐOẠN NÀY
+                Intent intent = new Intent(getActivity(), AddListingActivity.class);
+                intent.putExtra("LISTING_ID", listing.getListingId());
+                startActivity(intent);
             }
 
             @Override
@@ -70,16 +74,15 @@ public class ManageListingsFragment extends Fragment {
                 new AlertDialog.Builder(getContext())
                         .setTitle("Xác nhận xóa")
                         .setMessage("Bạn có chắc chắn muốn xóa tin '" + listing.getTitle() + "' không? Hành động này không thể hoàn tác.")
-                        .setPositiveButton("Xóa", (dialog, which) -> {
-                            deleteListing(listing);
-                        })
+                        .setPositiveButton("Xóa", (dialog, which) -> deleteListing(listing))
                         .setNegativeButton("Hủy", null)
                         .show();
             }
 
             @Override
             public void onChangeStatus(DataModels.Listing listing) {
-                Toast.makeText(getContext(), "Chức năng Đổi trạng thái đang phát triển", Toast.LENGTH_SHORT).show();
+                // GỌI HÀM MỚI Ở ĐÂY
+                showChangeStatusDialog(listing);
             }
         };
 
@@ -88,11 +91,38 @@ public class ManageListingsFragment extends Fragment {
         recyclerView.setAdapter(adapter);
     }
 
+    // ================== LOGIC MỚI CHO ĐỔI TRẠNG THÁI ==================
+    private void showChangeStatusDialog(DataModels.Listing listing) {
+        final String[] statuses = {"available", "paused", "sold"};
+        final String[] displayStatuses = {"Đang bán", "Tạm dừng", "Đã bán"};
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle("Chọn trạng thái mới")
+                .setItems(displayStatuses, (dialog, which) -> {
+                    String newStatus = statuses[which];
+                    updateListingStatus(listing, newStatus);
+                });
+        builder.create().show();
+    }
+
+    private void updateListingStatus(DataModels.Listing listing, String newStatus) {
+        db.collection("listings").document(listing.getListingId())
+                .update("status", newStatus)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(getContext(), "Cập nhật trạng thái thành công!", Toast.LENGTH_SHORT).show();
+                    loadMyListings(); // Tải lại danh sách để thấy thay đổi
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(getContext(), "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+    }
+    // ================== KẾT THÚC LOGIC MỚI ==================
+
     private void deleteListing(DataModels.Listing listing) {
         db.collection("listings").document(listing.getListingId()).delete()
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(getContext(), "Đã xóa tin thành công", Toast.LENGTH_SHORT).show();
-                    loadMyListings(); // Tải lại danh sách
+                    loadMyListings();
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(getContext(), "Lỗi khi xóa tin: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -100,6 +130,8 @@ public class ManageListingsFragment extends Fragment {
     }
 
     private void loadMyListings() {
+        if (currentUser == null) return;
+
         progressBar.setVisibility(View.VISIBLE);
         textViewEmpty.setVisibility(View.GONE);
 

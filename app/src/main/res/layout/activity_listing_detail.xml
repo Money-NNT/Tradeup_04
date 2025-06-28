@@ -12,14 +12,10 @@
         android:layout_height="wrap_content"
         android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar">
 
-        <!-- Thay vì slider phức tạp, dùng 1 ImageView đơn giản trước -->
-        <ImageView
-            android:id="@+id/imageViewProductDetail"
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/viewPagerImageSlider"
             android:layout_width="match_parent"
-            android:layout_height="250dp"
-            android:scaleType="centerCrop"
-            android:background="@color/light_gray"
-            tools:src="@tools:sample/backgrounds/scenic" />
+            android:layout_height="300dp" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -92,10 +88,13 @@
                 android:layout_marginTop="16dp"
                 android:layout_marginBottom="16dp"/>
 
-            <!-- Thông tin người bán -->
+            <!-- THÊM ID VÀO ĐÂY -->
             <RelativeLayout
+                android:id="@+id/sellerInfoLayout"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:padding="8dp">
 
                 <de.hdodenhof.circleimageview.CircleImageView
                     android:id="@+id/imageViewSeller"
@@ -127,14 +126,10 @@
                         android:textSize="12sp"/>
 
                 </LinearLayout>
-
             </RelativeLayout>
-
         </LinearLayout>
-
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Các nút hành động ở dưới cùng -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -159,5 +154,4 @@
             android:text="Liên hệ người bán / Trả giá"
             android:padding="12dp"/>
     </LinearLayout>
-
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

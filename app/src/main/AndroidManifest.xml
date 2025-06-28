@@ -2,9 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
     <application
         android:name=".YourApplication"
@@ -16,10 +19,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.BaiCuoiKy04"
-        android:enableOnBackInvokedCallback="true"
         tools:targetApi="31">
 
-
+        <!-- Activities -->
         <activity
             android:name=".LoginActivity"
             android:exported="true"
@@ -29,32 +31,26 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
         <activity
             android:name=".RegisterActivity"
             android:exported="false"
             android:theme="@style/Theme.BaiCuoiKy04.NoActionBar" />
-
         <activity
             android:name=".CreateProfileActivity"
             android:exported="false"
             android:theme="@style/Theme.BaiCuoiKy04.NoActionBar" />
-
         <activity
             android:name=".ForgotPasswordActivity"
             android:exported="false"
             android:theme="@style/Theme.BaiCuoiKy04.NoActionBar" />
-
         <activity
             android:name=".MainActivity"
             android:exported="false" />
-
         <activity
             android:name=".AddListingActivity"
             android:exported="false"
             android:label="Đăng tin mới"
             android:parentActivityName=".MainActivity" />
-
         <activity
             android:name=".EditProfileActivity"
             android:exported="false"
@@ -62,9 +58,12 @@
             android:parentActivityName=".MainActivity" />
         <activity
             android:name=".ListingDetailActivity"
-            android:exported="false"
-            android:label="Chi tiết sản phẩm"
-            android:parentActivityName=".MainActivity" />
-    </application>
+            android:exported="false" />
 
+        <!-- THÊM ACTIVITY MỚI VÀO ĐÂY -->
+        <activity
+            android:name=".ProfileViewActivity"
+            android:exported="false" />
+
+    </application>
 </manifest>

@@ -12,6 +12,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -23,8 +24,10 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class AddListingActivity extends AppCompatActivity {
 
@@ -35,12 +38,15 @@ public class AddListingActivity extends AppCompatActivity {
     private Spinner spinnerCategory, spinnerCondition;
     private Button btnChooseImages, btnSubmitListing;
     private ProgressBar progressBar;
+    private TextView textViewScreenTitle; // Đã đổi tên từ textViewTitle
 
     private FirebaseFirestore db;
-    private FirebaseAuth mAuth;
     private FirebaseUser currentUser;
 
+    private String listingIdToEdit;
+    private boolean isEditMode = false;
     private ArrayList<Uri> imageUris;
+    private List<String> existingImageUrls;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,19 +54,21 @@ public class AddListingActivity extends AppCompatActivity {
         setContentView(R.layout.activity_add_listing);
 
         db = FirebaseFirestore.getInstance();
-        mAuth = FirebaseAuth.getInstance();
-        currentUser = mAuth.getCurrentUser();
+        currentUser = FirebaseAuth.getInstance().getCurrentUser();
         imageUris = new ArrayList<>();
-
-        if (currentUser == null) {
-            Toast.makeText(this, "Bạn cần đăng nhập để đăng tin", Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
+        existingImageUrls = new ArrayList<>();
 
         initViews();
         setupSpinners();
         setupListeners();
+
+        if (getIntent().hasExtra("LISTING_ID")) {
+            listingIdToEdit = getIntent().getStringExtra("LISTING_ID");
+            isEditMode = true;
+            prepareEditMode();
+        } else {
+            isEditMode = false;
+        }
     }
 
     private void initViews() {
@@ -72,16 +80,14 @@ public class AddListingActivity extends AppCompatActivity {
         btnChooseImages = findViewById(R.id.btnChooseImages);
         btnSubmitListing = findViewById(R.id.btnSubmitListing);
         progressBar = findViewById(R.id.progressBar);
+        textViewScreenTitle = findViewById(R.id.textViewScreenTitle);
     }
 
     private void setupSpinners() {
-        ArrayAdapter<CharSequence> categoryAdapter = ArrayAdapter.createFromResource(this,
-                R.array.category_array, android.R.layout.simple_spinner_item);
+        ArrayAdapter<CharSequence> categoryAdapter = ArrayAdapter.createFromResource(this, R.array.category_array, android.R.layout.simple_spinner_item);
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategory.setAdapter(categoryAdapter);
-
-        ArrayAdapter<CharSequence> conditionAdapter = ArrayAdapter.createFromResource(this,
-                R.array.condition_array, android.R.layout.simple_spinner_item);
+        ArrayAdapter<CharSequence> conditionAdapter = ArrayAdapter.createFromResource(this, R.array.condition_array, android.R.layout.simple_spinner_item);
         conditionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCondition.setAdapter(conditionAdapter);
     }
@@ -91,11 +97,54 @@ public class AddListingActivity extends AppCompatActivity {
         btnSubmitListing.setOnClickListener(v -> handleSubmit());
     }
 
+    // ================== HÀM BỊ THIẾU ĐÃ ĐƯỢC THÊM LẠI ==================
     private void openImagePicker() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         intent.setType("image/*");
         startActivityForResult(Intent.createChooser(intent, "Chọn tối đa 10 ảnh"), PICK_IMAGES_REQUEST);
+    }
+    // ====================================================================
+
+    private void prepareEditMode() {
+        textViewScreenTitle.setText("Chỉnh sửa tin đăng");
+        btnSubmitListing.setText("Lưu thay đổi");
+        btnChooseImages.setText("Chọn ảnh mới (sẽ thay thế ảnh cũ)");
+
+        db.collection("listings").document(listingIdToEdit).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        DataModels.Listing listing = documentSnapshot.toObject(DataModels.Listing.class);
+                        if (listing != null) {
+                            populateFields(listing);
+                        }
+                    } else {
+                        Toast.makeText(this, "Không tìm thấy tin đăng để sửa", Toast.LENGTH_SHORT).show();
+                        finish();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Lỗi tải dữ liệu: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+    }
+
+    private void populateFields(DataModels.Listing listing) {
+        editTextTitle.setText(listing.getTitle());
+        editTextDescription.setText(listing.getDescription());
+        editTextPrice.setText(String.valueOf(listing.getPrice()));
+
+        ArrayAdapter<CharSequence> categoryAdapter = (ArrayAdapter<CharSequence>) spinnerCategory.getAdapter();
+        int categoryPosition = categoryAdapter.getPosition(listing.getCategory());
+        spinnerCategory.setSelection(categoryPosition);
+
+        ArrayAdapter<CharSequence> conditionAdapter = (ArrayAdapter<CharSequence>) spinnerCondition.getAdapter();
+        int conditionPosition = conditionAdapter.getPosition(listing.getCondition());
+        spinnerCondition.setSelection(conditionPosition);
+
+        if (listing.getImageUrls() != null) {
+            existingImageUrls.addAll(listing.getImageUrls());
+        }
     }
 
     @Override
@@ -105,15 +154,14 @@ public class AddListingActivity extends AppCompatActivity {
             imageUris.clear();
             if (data.getClipData() != null) {
                 ClipData clipData = data.getClipData();
-                int count = clipData.getItemCount();
-                int limit = Math.min(count, 10);
-                for (int i = 0; i < limit; i++) {
+                int count = Math.min(clipData.getItemCount(), 10);
+                for (int i = 0; i < count; i++) {
                     imageUris.add(clipData.getItemAt(i).getUri());
                 }
             } else if (data.getData() != null) {
                 imageUris.add(data.getData());
             }
-            btnChooseImages.setText(imageUris.size() + " ảnh đã được chọn");
+            btnChooseImages.setText(imageUris.size() + " ảnh mới đã được chọn");
         }
     }
 
@@ -123,12 +171,40 @@ public class AddListingActivity extends AppCompatActivity {
         }
         setLoading(true);
 
-        // Tạo một danh sách URL ảnh giả để test
-        ArrayList<String> dummyImageUrls = new ArrayList<>();
-        dummyImageUrls.add("https://via.placeholder.com/400x300.png?text=" + editTextTitle.getText().toString().replace(" ", "+"));
+        if (isEditMode) {
+            updateListing();
+        } else {
+            ArrayList<String> dummyImageUrls = new ArrayList<>();
+            dummyImageUrls.add("https://via.placeholder.com/400x300.png?text=" + editTextTitle.getText().toString().replace(" ", "+"));
+            saveListingToFirestore(dummyImageUrls);
+        }
+    }
 
-        // Gọi thẳng hàm lưu vào Firestore
-        saveListingToFirestore(dummyImageUrls);
+    private void updateListing() {
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("title", editTextTitle.getText().toString().trim());
+        updates.put("description", editTextDescription.getText().toString().trim());
+        updates.put("price", Long.parseLong(editTextPrice.getText().toString()));
+        updates.put("category", spinnerCategory.getSelectedItem().toString());
+        updates.put("condition", spinnerCondition.getSelectedItem().toString());
+
+        ArrayList<String> tags = new ArrayList<>();
+        String[] titleWords = editTextTitle.getText().toString().trim().toLowerCase(Locale.ROOT).split("\\s+");
+        for (String word : titleWords) {
+            tags.add(word.replaceAll("[^a-z0-9]", ""));
+        }
+        updates.put("tags", tags);
+
+        db.collection("listings").document(listingIdToEdit).update(updates)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Cập nhật tin đăng thành công!", Toast.LENGTH_SHORT).show();
+                    setLoading(false);
+                    finish();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    setLoading(false);
+                });
     }
 
     private boolean validateInputWithoutImage() {
@@ -150,7 +226,6 @@ public class AddListingActivity extends AppCompatActivity {
     private void saveListingToFirestore(List<String> imageUrls) {
         String listingId = db.collection("listings").document().getId();
         DataModels.Listing newListing = new DataModels.Listing();
-
         newListing.setListingId(listingId);
         newListing.setSellerId(currentUser.getUid());
         newListing.setSellerName(currentUser.getDisplayName());
@@ -166,14 +241,12 @@ public class AddListingActivity extends AppCompatActivity {
         newListing.setViews(0);
         newListing.setOffersCount(0);
         newListing.setNegotiable(true);
-
         ArrayList<String> tags = new ArrayList<>();
         String[] titleWords = newListing.getTitle().toLowerCase(Locale.ROOT).split("\\s+");
         for (String word : titleWords) {
-            tags.add(word.replaceAll("[^a-z0-9]", "")); // Loại bỏ ký tự đặc biệt
+            tags.add(word.replaceAll("[^a-z0-9]", ""));
         }
         newListing.setTags(tags);
-
         db.collection("listings").document(listingId).set(newListing)
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "Listing created successfully with ID: " + listingId);
@@ -183,7 +256,7 @@ public class AddListingActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Error adding document", e);
-                    Toast.makeText(AddListingActivity.this, "Lỗi khi lưu tin: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Lỗi khi lưu tin: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     setLoading(false);
                 });
     }
