@@ -1,0 +1,193 @@
+package com.example.baicuoiky04;
+
+import com.google.firebase.firestore.GeoPoint;
+import com.google.firebase.firestore.ServerTimestamp;
+import java.util.Date;
+import java.util.List;
+
+/**
+ * Lớp container chứa tất cả các lớp model của ứng dụng để dễ quản lý.
+ */
+public final class DataModels {
+
+    // Làm cho constructor private để không ai có thể tạo instance của lớp container này
+    private DataModels() {
+    }
+
+    //================================================================================
+    // 1. LỚP MODEL CHO USER
+    //================================================================================
+    public static class User {
+        private String uid;
+        private String displayName;
+        private String email;
+        private String photoUrl;
+        private String bio;
+        private String contactInfo;
+        private double averageRating;
+        private long totalReviews;
+        private long totalTransactions;
+        private List<String> savedListings;
+        private String accountStatus;
+        @ServerTimestamp
+        private Date createdAt;
+
+        public User() {} // Constructor rỗng cho Firestore
+
+        // Getters and Setters
+        public String getUid() { return uid; }
+        public void setUid(String uid) { this.uid = uid; }
+        public String getDisplayName() { return displayName; }
+        public void setDisplayName(String displayName) { this.displayName = displayName; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public String getPhotoUrl() { return photoUrl; }
+        public void setPhotoUrl(String photoUrl) { this.photoUrl = photoUrl; }
+        public String getBio() { return bio; }
+        public void setBio(String bio) { this.bio = bio; }
+        public String getContactInfo() { return contactInfo; }
+        public void setContactInfo(String contactInfo) { this.contactInfo = contactInfo; }
+        public double getAverageRating() { return averageRating; }
+        public void setAverageRating(double averageRating) { this.averageRating = averageRating; }
+        public long getTotalReviews() { return totalReviews; }
+        public void setTotalReviews(long totalReviews) { this.totalReviews = totalReviews; }
+        public long getTotalTransactions() { return totalTransactions; }
+        public void setTotalTransactions(long totalTransactions) { this.totalTransactions = totalTransactions; }
+        public List<String> getSavedListings() { return savedListings; }
+        public void setSavedListings(List<String> savedListings) { this.savedListings = savedListings; }
+        public String getAccountStatus() { return accountStatus; }
+        public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
+        public Date getCreatedAt() { return createdAt; }
+        public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+    }
+
+    //================================================================================
+    // 2. LỚP MODEL CHO LISTING (SẢN PHẨM ĐĂNG BÁN)
+    //================================================================================
+    public static class Listing {
+        private String listingId;
+        private String sellerId;
+        private String sellerName;
+        private String sellerPhotoUrl;
+        private String title;
+        private String description;
+        private long price;
+        private boolean isNegotiable;
+        private String category;
+        private String condition;
+        private String locationName;
+        private GeoPoint locationGeoPoint;
+        private List<String> imageUrls;
+        private List<String> tags;
+        private String status;
+        private long views;
+        private long offersCount;
+        private String buyerId;
+        @ServerTimestamp
+        private Date createdAt;
+        @ServerTimestamp
+        private Date lastUpdatedAt;
+
+        public Listing() {} // Constructor rỗng cho Firestore
+
+        // Getters and Setters
+        public String getListingId() { return listingId; }
+        public void setListingId(String listingId) { this.listingId = listingId; }
+        public String getSellerId() { return sellerId; }
+        public void setSellerId(String sellerId) { this.sellerId = sellerId; }
+        public String getSellerName() { return sellerName; }
+        public void setSellerName(String sellerName) { this.sellerName = sellerName; }
+        public String getSellerPhotoUrl() { return sellerPhotoUrl; }
+        public void setSellerPhotoUrl(String sellerPhotoUrl) { this.sellerPhotoUrl = sellerPhotoUrl; }
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+        public long getPrice() { return price; }
+        public void setPrice(long price) { this.price = price; }
+        public boolean isNegotiable() { return isNegotiable; }
+        public void setNegotiable(boolean negotiable) { isNegotiable = negotiable; }
+        public String getCategory() { return category; }
+        public void setCategory(String category) { this.category = category; }
+        public String getCondition() { return condition; }
+        public void setCondition(String condition) { this.condition = condition; }
+        public String getLocationName() { return locationName; }
+        public void setLocationName(String locationName) { this.locationName = locationName; }
+        public GeoPoint getLocationGeoPoint() { return locationGeoPoint; }
+        public void setLocationGeoPoint(GeoPoint locationGeoPoint) { this.locationGeoPoint = locationGeoPoint; }
+        public List<String> getImageUrls() { return imageUrls; }
+        public void setImageUrls(List<String> imageUrls) { this.imageUrls = imageUrls; }
+        public List<String> getTags() { return tags; }
+        public void setTags(List<String> tags) { this.tags = tags; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public long getViews() { return views; }
+        public void setViews(long views) { this.views = views; }
+        public long getOffersCount() { return offersCount; }
+        public void setOffersCount(long offersCount) { this.offersCount = offersCount; }
+        public String getBuyerId() { return buyerId; }
+        public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
+        public Date getCreatedAt() { return createdAt; }
+        public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+        public Date getLastUpdatedAt() { return lastUpdatedAt; }
+        public void setLastUpdatedAt(Date lastUpdatedAt) { this.lastUpdatedAt = lastUpdatedAt; }
+    }
+
+    //================================================================================
+    // 3. LỚP MODEL CHO REVIEW (ĐÁNH GIÁ)
+    //================================================================================
+    public static class Review {
+        private String listingId;
+        private String reviewerId;
+        private String reviewerName;
+        private String reviewerPhotoUrl;
+        private double rating;
+        private String comment;
+        @ServerTimestamp
+        private Date createdAt;
+
+        public Review() {} // Constructor rỗng cho Firestore
+
+        // Getters and Setters
+        public String getListingId() { return listingId; }
+        public void setListingId(String listingId) { this.listingId = listingId; }
+        public String getReviewerId() { return reviewerId; }
+        public void setReviewerId(String reviewerId) { this.reviewerId = reviewerId; }
+        public String getReviewerName() { return reviewerName; }
+        public void setReviewerName(String reviewerName) { this.reviewerName = reviewerName; }
+        public String getReviewerPhotoUrl() { return reviewerPhotoUrl; }
+        public void setReviewerPhotoUrl(String reviewerPhotoUrl) { this.reviewerPhotoUrl = reviewerPhotoUrl; }
+        public double getRating() { return rating; }
+        public void setRating(double rating) { this.rating = rating; }
+        public String getComment() { return comment; }
+        public void setComment(String comment) { this.comment = comment; }
+        public Date getCreatedAt() { return createdAt; }
+        public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+    }
+
+    //================================================================================
+    // 4. LỚP MODEL CHO OFFER (TRẢ GIÁ)
+    //================================================================================
+    public static class Offer {
+        private String buyerId;
+        private String buyerName;
+        private long offerPrice;
+        private String status;
+        @ServerTimestamp
+        private Date createdAt;
+
+        public Offer() {} // Constructor rỗng cho Firestore
+
+        // Getters and Setters
+        public String getBuyerId() { return buyerId; }
+        public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
+        public String getBuyerName() { return buyerName; }
+        public void setBuyerName(String buyerName) { this.buyerName = buyerName; }
+        public long getOfferPrice() { return offerPrice; }
+        public void setOfferPrice(long offerPrice) { this.offerPrice = offerPrice; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public Date getCreatedAt() { return createdAt; }
+        public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+    }
+}

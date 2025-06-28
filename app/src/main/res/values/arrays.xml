@@ -1,0 +1,24 @@
+<resources>
+    <array name="initial_price_range">
+        <item>0</item>
+        <item>50000000</item>
+    </array>
+
+    <string-array name="category_array">
+        <item>Đồ điện tử</item>
+        <item>Xe cộ</item>
+        <item>Thời trang, Đồ dùng cá nhân</item>
+        <item>Đồ gia dụng, Nội thất</item>
+        <item>Sách, Thể thao &amp; Sở thích</item>
+        <item>Mẹ &amp; Bé</item>
+        <item>Khác</item>
+    </string-array>
+
+    <string-array name="condition_array">
+        <item>Mới</item>
+        <item>Đã qua sử dụng - Như mới</item>
+        <item>Đã qua sử dụng - Rất tốt</item>
+        <item>Đã qua sử dụng - Tốt</item>
+        <item>Đã qua sử dụng - Khá</item>
+    </string-array>
+</resources>

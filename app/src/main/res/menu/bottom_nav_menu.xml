@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Trang chủ - FR-3: Browsing and Searching -->
+    <item
+        android:id="@+id/nav_home"
+        android:icon="@drawable/ic_home_24"
+        android:title="@string/trang_ch"/>
+    <!-- Đã lưu - FR-9.2.1: View Saved items -->
+    <item
+        android:id="@+id/nav_saved"
+        android:icon="@drawable/ic_bookmark_24"
+        android:title="@string/l_u"/>
+    <!-- Đăng tin - Nút này sẽ là FloatingActionButton -->
+    <item
+        android:id="@+id/nav_add_placeholder"
+        android:title=""
+        android:enabled="false"/>
+    <!-- Quản lý - FR-2.2: Manage Listings -->
+    <item
+        android:id="@+id/nav_manage"
+        android:icon="@drawable/ic_manage_24"
+        android:title="@string/qu_n_l"/>
+    <!-- Hồ sơ - FR-1.2: User Profiles -->
+    <item
+        android:id="@+id/nav_profile"
+        android:icon="@drawable/ic_profile_24"
+        android:title="@string/h_s"/>
+</menu>

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:paddingStart="24dp"
+    android:paddingEnd="24dp"
+    android:background="@android:color/white"
+    tools:context=".LoginActivity">
+
+    <!-- Icon Chào mừng -->
+    <ImageView
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:contentDescription="@string/todoo"
+        android:src="@drawable/logo2"
+        app:tint="@color/colorPrimary"
+        android:layout_marginTop="64dp"/>
+
+    <!-- Tiêu đề -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/ch_o_m_ng_tr_l_i"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="@color/black"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="32dp"/>
+
+    <!-- Input Email -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        app:startIconDrawable="@drawable/ic_email_24"
+        android:hint="@string/emaill">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editTextEmail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textEmailAddress"
+            tools:ignore="TextContrastCheck,VisualLintTextFieldSize" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Input Mật khẩu -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        app:startIconDrawable="@drawable/ic_lock_24"
+        app:passwordToggleEnabled="true"
+        android:layout_marginTop="16dp"
+        android:hint="@string/m_t_kh_uu">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editTextPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textPassword"
+            tools:ignore="TextContrastCheck,VisualLintTextFieldSize" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Link Quên mật khẩu -->
+    <TextView
+        android:id="@+id/textViewForgotPassword"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/qu_n_m_t_kh_uu"
+        android:layout_gravity="end"
+        android:layout_marginTop="8dp"
+        android:textColor="@color/colorPrimary"/>
+
+    <!-- Nút Đăng nhập -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonLogin"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/ng_nh_pp"
+        android:backgroundTint="@color/colorPrimary"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:textSize="16sp"
+        android:layout_marginTop="24dp"
+        app:cornerRadius="12dp"
+        tools:ignore="VisualLintButtonSize" />
+
+    <!-- Nút Đăng nhập bằng Google -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/buttonGoogleSignIn"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/ng_nh_p_b_ng_googlee"
+        android:textColor="@android:color/black"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:textSize="16sp"
+        app:icon="@drawable/logo3"
+        app:iconTint="@null"
+        app:iconPadding="16dp"
+        app:strokeColor="@color/light_gray"
+        android:layout_marginTop="16dp"
+        app:cornerRadius="12dp"
+        tools:ignore="VisualLintButtonSize" />
+
+    <!-- Dòng phân tách "Hoặc" -->
+    <View
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <!-- Link chuyển sang Đăng ký -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/ch_a_c_t_i_kho_n"
+            android:textColor="@android:color/darker_gray"
+            tools:ignore="TextContrastCheck" />
+
+        <TextView
+            android:id="@+id/textViewRegisterLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/ng_ky"
+            android:textColor="@color/colorPrimary"
+            android:textStyle="bold"/>
+
+    </LinearLayout>
+
+</LinearLayout>
