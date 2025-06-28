@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
@@ -66,8 +67,18 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
         initRecyclerView();
         setupListeners();
 
-        fetchListings();
-        progressBar = findViewById(R.id.progressBar);
+        if (savedInstanceState == null) {
+            showHomeContent();
+            bottomNavigationView.setSelectedItemId(R.id.nav_home);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (recyclerViewListings.getVisibility() == View.VISIBLE) {
+            fetchListings();
+        }
     }
 
     private void checkUserStatus() {
@@ -99,13 +110,17 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
 
     private void setupListeners() {
         btnFilter.setOnClickListener(v -> openFilterDialog());
+
         fabAddItem.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, AddListingActivity.class)));
+
         bottomNavigationView.setOnItemSelectedListener(this);
-        bottomNavigationView.setBackground(null);
+        bottomNavigationView.setBackground(null); // For FAB notch
 
         listingAdapter.setOnItemClickListener(listing -> {
             Log.d(TAG, "Item clicked: " + listing.getListingId());
-            Toast.makeText(this, "Chức năng xem chi tiết sẽ được phát triển", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(MainActivity.this, ListingDetailActivity.class);
+            intent.putExtra("LISTING_ID", listing.getListingId());
+            startActivity(intent);
         });
 
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
@@ -113,12 +128,17 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
             public boolean onQueryTextSubmit(String query) {
                 currentKeyword = query;
                 fetchListings();
-                return false;
+                searchView.clearFocus();
+                return true;
             }
 
             @Override
             public boolean onQueryTextChange(String newText) {
-                return false;
+                if (newText.isEmpty()) {
+                    currentKeyword = "";
+                    fetchListings();
+                }
+                return true;
             }
         });
     }
@@ -126,34 +146,47 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         int itemId = item.getItemId();
+        Fragment selectedFragment = null;
+
         if (itemId == R.id.nav_home) {
             showHomeContent();
             return true;
+        } else if (itemId == R.id.nav_saved) {
+            selectedFragment = new SavedListingsFragment();
+        } else if (itemId == R.id.nav_manage) {
+            Toast.makeText(this, "Chức năng Quản lý sắp ra mắt", Toast.LENGTH_SHORT).show();
+            return true;
         } else if (itemId == R.id.nav_profile) {
-            loadFragment(new ProfileFragment());
-            return true;
-        } else if (itemId == R.id.nav_saved || itemId == R.id.nav_manage) {
-            Toast.makeText(this, "Chức năng sắp ra mắt", Toast.LENGTH_SHORT).show();
-            return true;
+            selectedFragment = new ProfileFragment();
         }
-        return false;
+
+        if (selectedFragment != null) {
+            loadFragment(selectedFragment);
+        }
+        return true;
     }
 
     private void loadFragment(Fragment fragment) {
         recyclerViewListings.setVisibility(View.GONE);
+        searchView.setVisibility(View.GONE);
+        btnFilter.setVisibility(View.GONE);
         fragmentContainer.setVisibility(View.VISIBLE);
+
         FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
         transaction.replace(R.id.fragment_container, fragment);
-        transaction.addToBackStack(null);
         transaction.commit();
     }
 
     private void showHomeContent() {
         fragmentContainer.setVisibility(View.GONE);
         recyclerViewListings.setVisibility(View.VISIBLE);
-        getSupportFragmentManager().popBackStack();
-    }
+        searchView.setVisibility(View.VISIBLE);
+        btnFilter.setVisibility(View.VISIBLE);
 
+        getSupportFragmentManager().getFragments().forEach(fragment ->
+                getSupportFragmentManager().beginTransaction().remove(fragment).commit()
+        );
+    }
 
     private void openFilterDialog() {
         FilterBottomSheetFragment filterSheet = FilterBottomSheetFragment.newInstance(
@@ -180,12 +213,16 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
         progressBar.setVisibility(View.VISIBLE);
         Log.d(TAG, "fetchListings: Building query with current filters...");
 
-        Query query = db.collection("listings")
-                .whereEqualTo("status", "available");
+        Query query = db.collection("listings").whereEqualTo("status", "available");
+
+        if (!currentKeyword.isEmpty()) {
+            query = query.whereArrayContains("tags", currentKeyword.toLowerCase());
+        }
 
         if (currentMinPrice > 0) {
             query = query.whereGreaterThanOrEqualTo("price", currentMinPrice);
         }
+
         if (currentMaxPrice < 50000000) {
             query = query.whereLessThanOrEqualTo("price", currentMaxPrice);
         }
@@ -205,8 +242,7 @@ public class MainActivity extends AppCompatActivity implements FilterBottomSheet
                     if (task.isSuccessful()) {
                         listingList.clear();
                         for (QueryDocumentSnapshot document : task.getResult()) {
-                            DataModels.Listing listing = document.toObject(DataModels.Listing.class);
-                            listingList.add(listing);
+                            listingList.add(document.toObject(DataModels.Listing.class));
                         }
                         Log.d(TAG, "fetchListings: Success! Fetched " + listingList.size() + " listings.");
                         listingAdapter.notifyDataSetChanged();

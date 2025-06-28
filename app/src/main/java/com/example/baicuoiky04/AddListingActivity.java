@@ -17,22 +17,14 @@ import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.android.gms.tasks.Task;
-import com.google.android.gms.tasks.Tasks;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.storage.FirebaseStorage;
-import com.google.firebase.storage.StorageReference;
-import com.google.firebase.storage.UploadTask;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.Locale;
 
 public class AddListingActivity extends AppCompatActivity {
 
@@ -46,9 +38,7 @@ public class AddListingActivity extends AppCompatActivity {
 
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
-    private FirebaseStorage storage;
     private FirebaseUser currentUser;
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private ArrayList<Uri> imageUris;
 
@@ -59,13 +49,11 @@ public class AddListingActivity extends AppCompatActivity {
 
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
-        storage = FirebaseStorage.getInstance();
         currentUser = mAuth.getCurrentUser();
         imageUris = new ArrayList<>();
 
         if (currentUser == null) {
             Toast.makeText(this, "Bạn cần đăng nhập để đăng tin", Toast.LENGTH_SHORT).show();
-            startActivity(new Intent(this, LoginActivity.class));
             finish();
             return;
         }
@@ -126,19 +114,24 @@ public class AddListingActivity extends AppCompatActivity {
                 imageUris.add(data.getData());
             }
             btnChooseImages.setText(imageUris.size() + " ảnh đã được chọn");
-            Toast.makeText(this, imageUris.size() + " ảnh đã được chọn", Toast.LENGTH_SHORT).show();
         }
     }
 
     private void handleSubmit() {
-        if (!validateInput()) {
+        if (!validateInputWithoutImage()) {
             return;
         }
         setLoading(true);
-        executor.execute(this::uploadImagesAndSaveListing);
+
+        // Tạo một danh sách URL ảnh giả để test
+        ArrayList<String> dummyImageUrls = new ArrayList<>();
+        dummyImageUrls.add("https://via.placeholder.com/400x300.png?text=" + editTextTitle.getText().toString().replace(" ", "+"));
+
+        // Gọi thẳng hàm lưu vào Firestore
+        saveListingToFirestore(dummyImageUrls);
     }
 
-    private boolean validateInput() {
+    private boolean validateInputWithoutImage() {
         if (TextUtils.isEmpty(editTextTitle.getText())) {
             editTextTitle.setError("Tiêu đề không được để trống");
             return false;
@@ -151,56 +144,7 @@ public class AddListingActivity extends AppCompatActivity {
             editTextPrice.setError("Giá không được để trống");
             return false;
         }
-        if (imageUris.isEmpty()) {
-            Toast.makeText(this, "Vui lòng chọn ít nhất 1 ảnh", Toast.LENGTH_SHORT).show();
-            return false;
-        }
         return true;
-    }
-
-    private void uploadImagesAndSaveListing() {
-        List<String> imageUrls = new ArrayList<>();
-        StorageReference storageRef = storage.getReference("listing_images");
-        List<Task<Uri>> uploadTasks = new ArrayList<>();
-
-        for (Uri uri : imageUris) {
-            File file = new File(uri.getPath());
-            if (!file.exists()) {
-                runOnUiThread(() -> {
-                    Toast.makeText(this, "Tệp không tồn tại: " + uri.getPath(), Toast.LENGTH_LONG).show();
-                    setLoading(false);
-                });
-                return;
-            }
-
-            StorageReference fileReference = storageRef.child(System.currentTimeMillis() + "_" + UUID.randomUUID().toString() + ".jpg");
-            UploadTask uploadTask = fileReference.putFile(uri);
-
-            Task<Uri> urlTask = uploadTask.continueWithTask(task -> {
-                if (!task.isSuccessful()) {
-                    throw task.getException();
-                }
-                return fileReference.getDownloadUrl();
-            }).addOnSuccessListener(downloadUrl -> {
-                synchronized (imageUrls) {
-                    imageUrls.add(downloadUrl.toString());
-                }
-            });
-            uploadTasks.add(urlTask);
-        }
-
-        Tasks.whenAllSuccess(uploadTasks).addOnSuccessListener(results -> {
-            runOnUiThread(() -> {
-                Log.d(TAG, "Tải lên thành công: " + imageUrls.size() + " ảnh");
-                saveListingToFirestore(imageUrls);
-            });
-        }).addOnFailureListener(e -> {
-            runOnUiThread(() -> {
-                Log.e(TAG, "Image upload failed", e);
-                Toast.makeText(AddListingActivity.this, "Lỗi tải ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                setLoading(false);
-            });
-        });
     }
 
     private void saveListingToFirestore(List<String> imageUrls) {
@@ -223,41 +167,34 @@ public class AddListingActivity extends AppCompatActivity {
         newListing.setOffersCount(0);
         newListing.setNegotiable(true);
 
-        executor.execute(() -> {
-            db.collection("listings").document(listingId).set(newListing)
-                    .addOnSuccessListener(aVoid -> {
-                        runOnUiThread(() -> {
-                            Log.d(TAG, "Listing created successfully with ID: " + listingId);
-                            Toast.makeText(AddListingActivity.this, "Đăng tin thành công!", Toast.LENGTH_SHORT).show();
-                            setLoading(false);
-                            finish();
-                        });
-                    })
-                    .addOnFailureListener(e -> {
-                        runOnUiThread(() -> {
-                            Log.e(TAG, "Error adding document", e);
-                            Toast.makeText(AddListingActivity.this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                            setLoading(false);
-                        });
-                    });
-        });
+        ArrayList<String> tags = new ArrayList<>();
+        String[] titleWords = newListing.getTitle().toLowerCase(Locale.ROOT).split("\\s+");
+        for (String word : titleWords) {
+            tags.add(word.replaceAll("[^a-z0-9]", "")); // Loại bỏ ký tự đặc biệt
+        }
+        newListing.setTags(tags);
+
+        db.collection("listings").document(listingId).set(newListing)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "Listing created successfully with ID: " + listingId);
+                    Toast.makeText(AddListingActivity.this, "Đăng tin (test) thành công!", Toast.LENGTH_SHORT).show();
+                    setLoading(false);
+                    finish();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error adding document", e);
+                    Toast.makeText(AddListingActivity.this, "Lỗi khi lưu tin: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    setLoading(false);
+                });
     }
 
     private void setLoading(boolean isLoading) {
-        runOnUiThread(() -> {
-            if (isLoading) {
-                progressBar.setVisibility(View.VISIBLE);
-                btnSubmitListing.setEnabled(false);
-            } else {
-                progressBar.setVisibility(View.GONE);
-                btnSubmitListing.setEnabled(true);
-            }
-        });
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        executor.shutdown();
+        if (isLoading) {
+            progressBar.setVisibility(View.VISIBLE);
+            btnSubmitListing.setEnabled(false);
+        } else {
+            progressBar.setVisibility(View.GONE);
+            btnSubmitListing.setEnabled(true);
+        }
     }
 }

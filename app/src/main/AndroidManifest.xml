@@ -58,7 +58,11 @@
             android:exported="false"
             android:label="Chỉnh sửa hồ sơ"
             android:parentActivityName=".MainActivity" />
-
+        <activity
+            android:name=".ListingDetailActivity"
+            android:exported="false"
+            android:label="Chi tiết sản phẩm"
+            android:parentActivityName=".MainActivity" />
     </application>
 
 </manifest>
