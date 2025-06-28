@@ -21,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
@@ -38,15 +39,14 @@ public class AddListingActivity extends AppCompatActivity {
     private Spinner spinnerCategory, spinnerCondition;
     private Button btnChooseImages, btnSubmitListing;
     private ProgressBar progressBar;
-    private TextView textViewScreenTitle; // Đã đổi tên từ textViewTitle
+    private TextView textViewScreenTitle;
 
     private FirebaseFirestore db;
     private FirebaseUser currentUser;
 
     private String listingIdToEdit;
     private boolean isEditMode = false;
-    private ArrayList<Uri> imageUris;
-    private List<String> existingImageUrls;
+    private ArrayList<Uri> newImageUris;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,8 +55,7 @@ public class AddListingActivity extends AppCompatActivity {
 
         db = FirebaseFirestore.getInstance();
         currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        imageUris = new ArrayList<>();
-        existingImageUrls = new ArrayList<>();
+        newImageUris = new ArrayList<>();
 
         initViews();
         setupSpinners();
@@ -66,8 +65,6 @@ public class AddListingActivity extends AppCompatActivity {
             listingIdToEdit = getIntent().getStringExtra("LISTING_ID");
             isEditMode = true;
             prepareEditMode();
-        } else {
-            isEditMode = false;
         }
     }
 
@@ -97,35 +94,23 @@ public class AddListingActivity extends AppCompatActivity {
         btnSubmitListing.setOnClickListener(v -> handleSubmit());
     }
 
-    // ================== HÀM BỊ THIẾU ĐÃ ĐƯỢC THÊM LẠI ==================
     private void openImagePicker() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         intent.setType("image/*");
         startActivityForResult(Intent.createChooser(intent, "Chọn tối đa 10 ảnh"), PICK_IMAGES_REQUEST);
     }
-    // ====================================================================
 
     private void prepareEditMode() {
         textViewScreenTitle.setText("Chỉnh sửa tin đăng");
         btnSubmitListing.setText("Lưu thay đổi");
-        btnChooseImages.setText("Chọn ảnh mới (sẽ thay thế ảnh cũ)");
 
         db.collection("listings").document(listingIdToEdit).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
                         DataModels.Listing listing = documentSnapshot.toObject(DataModels.Listing.class);
-                        if (listing != null) {
-                            populateFields(listing);
-                        }
-                    } else {
-                        Toast.makeText(this, "Không tìm thấy tin đăng để sửa", Toast.LENGTH_SHORT).show();
-                        finish();
+                        if (listing != null) populateFields(listing);
                     }
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Lỗi tải dữ liệu: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    finish();
                 });
     }
 
@@ -135,38 +120,31 @@ public class AddListingActivity extends AppCompatActivity {
         editTextPrice.setText(String.valueOf(listing.getPrice()));
 
         ArrayAdapter<CharSequence> categoryAdapter = (ArrayAdapter<CharSequence>) spinnerCategory.getAdapter();
-        int categoryPosition = categoryAdapter.getPosition(listing.getCategory());
-        spinnerCategory.setSelection(categoryPosition);
+        spinnerCategory.setSelection(categoryAdapter.getPosition(listing.getCategory()));
 
         ArrayAdapter<CharSequence> conditionAdapter = (ArrayAdapter<CharSequence>) spinnerCondition.getAdapter();
-        int conditionPosition = conditionAdapter.getPosition(listing.getCondition());
-        spinnerCondition.setSelection(conditionPosition);
-
-        if (listing.getImageUrls() != null) {
-            existingImageUrls.addAll(listing.getImageUrls());
-        }
+        spinnerCondition.setSelection(conditionAdapter.getPosition(listing.getCondition()));
     }
+
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == PICK_IMAGES_REQUEST && resultCode == RESULT_OK && data != null) {
-            imageUris.clear();
+            newImageUris.clear();
             if (data.getClipData() != null) {
                 ClipData clipData = data.getClipData();
                 int count = Math.min(clipData.getItemCount(), 10);
-                for (int i = 0; i < count; i++) {
-                    imageUris.add(clipData.getItemAt(i).getUri());
-                }
+                for (int i = 0; i < count; i++) newImageUris.add(clipData.getItemAt(i).getUri());
             } else if (data.getData() != null) {
-                imageUris.add(data.getData());
+                newImageUris.add(data.getData());
             }
-            btnChooseImages.setText(imageUris.size() + " ảnh mới đã được chọn");
+            btnChooseImages.setText(newImageUris.size() + " ảnh đã được chọn");
         }
     }
 
     private void handleSubmit() {
-        if (!validateInputWithoutImage()) {
+        if (!validateInput()) {
             return;
         }
         setLoading(true);
@@ -178,6 +156,13 @@ public class AddListingActivity extends AppCompatActivity {
             dummyImageUrls.add("https://via.placeholder.com/400x300.png?text=" + editTextTitle.getText().toString().replace(" ", "+"));
             saveListingToFirestore(dummyImageUrls);
         }
+    }
+
+    private boolean validateInput() {
+        if (TextUtils.isEmpty(editTextTitle.getText())) { editTextTitle.setError("Tiêu đề không được để trống"); return false; }
+        if (TextUtils.isEmpty(editTextDescription.getText())) { editTextDescription.setError("Mô tả không được để trống"); return false; }
+        if (TextUtils.isEmpty(editTextPrice.getText())) { editTextPrice.setError("Giá không được để trống"); return false; }
+        return true;
     }
 
     private void updateListing() {
@@ -194,6 +179,7 @@ public class AddListingActivity extends AppCompatActivity {
             tags.add(word.replaceAll("[^a-z0-9]", ""));
         }
         updates.put("tags", tags);
+        updates.put("lastUpdatedAt", FieldValue.serverTimestamp());
 
         db.collection("listings").document(listingIdToEdit).update(updates)
                 .addOnSuccessListener(aVoid -> {
@@ -205,22 +191,6 @@ public class AddListingActivity extends AppCompatActivity {
                     Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     setLoading(false);
                 });
-    }
-
-    private boolean validateInputWithoutImage() {
-        if (TextUtils.isEmpty(editTextTitle.getText())) {
-            editTextTitle.setError("Tiêu đề không được để trống");
-            return false;
-        }
-        if (TextUtils.isEmpty(editTextDescription.getText())) {
-            editTextDescription.setError("Mô tả không được để trống");
-            return false;
-        }
-        if (TextUtils.isEmpty(editTextPrice.getText())) {
-            editTextPrice.setError("Giá không được để trống");
-            return false;
-        }
-        return true;
     }
 
     private void saveListingToFirestore(List<String> imageUrls) {
@@ -235,27 +205,27 @@ public class AddListingActivity extends AppCompatActivity {
         newListing.setPrice(Long.parseLong(editTextPrice.getText().toString()));
         newListing.setCategory(spinnerCategory.getSelectedItem().toString());
         newListing.setCondition(spinnerCondition.getSelectedItem().toString());
-        newListing.setLocationName("Hà Nội, Việt Nam");
+        newListing.setLocationName("Hà Nội, Việt Nam"); // Tạm thời hard-code
         newListing.setImageUrls(imageUrls);
         newListing.setStatus("available");
         newListing.setViews(0);
         newListing.setOffersCount(0);
         newListing.setNegotiable(true);
+
         ArrayList<String> tags = new ArrayList<>();
         String[] titleWords = newListing.getTitle().toLowerCase(Locale.ROOT).split("\\s+");
         for (String word : titleWords) {
             tags.add(word.replaceAll("[^a-z0-9]", ""));
         }
         newListing.setTags(tags);
+
         db.collection("listings").document(listingId).set(newListing)
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "Listing created successfully with ID: " + listingId);
-                    Toast.makeText(AddListingActivity.this, "Đăng tin (test) thành công!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Đăng tin (test) thành công!", Toast.LENGTH_SHORT).show();
                     setLoading(false);
                     finish();
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error adding document", e);
                     Toast.makeText(this, "Lỗi khi lưu tin: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     setLoading(false);
                 });

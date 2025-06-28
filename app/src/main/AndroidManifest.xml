@@ -21,6 +21,7 @@
         android:theme="@style/Theme.BaiCuoiKy04"
         tools:targetApi="31">
 
+
         <!-- Activities -->
         <activity
             android:name=".LoginActivity"
@@ -59,11 +60,25 @@
         <activity
             android:name=".ListingDetailActivity"
             android:exported="false" />
-
-        <!-- THÊM ACTIVITY MỚI VÀO ĐÂY -->
         <activity
             android:name=".ProfileViewActivity"
             android:exported="false" />
+
+        <!-- KHAI BÁO ACTIVITY MỚI -->
+        <activity
+            android:name=".OffersActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"/>
+
+        <activity
+            android:name=".ReviewActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".SearchActivity"
+            android:exported="false"
+            android:theme="@style/Theme.BaiCuoiKy04.NoActionBar" />
 
     </application>
 </manifest>

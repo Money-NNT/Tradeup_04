@@ -1,6 +1,7 @@
 package com.example.baicuoiky04;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -75,27 +76,32 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
 
             String status = listing.getStatus();
 
-            // ================== LOGIC MỚI CHO MÀU SẮC ==================
-            if (status.equalsIgnoreCase("available")) {
+            if ("available".equalsIgnoreCase(status)) {
                 textViewStatus.setText("ĐANG BÁN");
                 textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.status_available)));
-            } else if (status.equalsIgnoreCase("sold")) {
+            } else if ("sold".equalsIgnoreCase(status)) {
                 textViewStatus.setText("ĐÃ BÁN");
                 textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.status_sold)));
-            } else if (status.equalsIgnoreCase("paused")) {
+            } else if ("paused".equalsIgnoreCase(status)) {
                 textViewStatus.setText("TẠM DỪNG");
                 textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.status_paused)));
             } else {
                 textViewStatus.setText(status.toUpperCase());
                 textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.light_gray)));
             }
-            // ================== KẾT THÚC LOGIC MỚI ==================
 
             if (listing.getImageUrls() != null && !listing.getImageUrls().isEmpty()) {
                 Glide.with(context).load(listing.getImageUrls().get(0)).into(imageViewProduct);
             }
 
             buttonMoreOptions.setOnClickListener(v -> showPopupMenu(v, listing, listener));
+
+            // THÊM SỰ KIỆN CLICK MỚI
+            itemView.setOnClickListener(v -> {
+                Intent intent = new Intent(context, OffersActivity.class);
+                intent.putExtra("LISTING_ID", listing.getListingId());
+                context.startActivity(intent);
+            });
         }
 
         private void showPopupMenu(View view, DataModels.Listing listing, OnActionListener listener) {
