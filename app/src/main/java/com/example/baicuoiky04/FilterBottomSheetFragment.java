@@ -7,7 +7,7 @@ import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
-import android.widget.Toast;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -16,28 +16,35 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.slider.RangeSlider;
+import com.google.android.material.slider.Slider;
 
 import java.util.List;
+import java.util.Locale;
 
 public class FilterBottomSheetFragment extends BottomSheetDialogFragment {
 
-    // Nâng cấp Interface để gửi thêm các bộ lọc mới
     public interface FilterListener {
-        void onFilterApplied(String sortBy, boolean isAscending, float minPrice, float maxPrice, String category, String condition);
+        void onFilterApplied(String sortBy, boolean isAscending, float minPrice, float maxPrice, String category, String condition, float distance);
     }
 
     private FilterListener listener;
 
-    // Views
     private ChipGroup chipGroupSort, chipGroupCondition;
     private RangeSlider rangeSliderPrice;
     private Spinner spinnerCategory;
+    private Slider sliderDistance;
+    private TextView textViewDistanceValue;
     private Button btnApplyFilter, btnResetFilter;
 
-    // Biến để lưu trạng thái ban đầu (sẽ được phát triển sau nếu cần)
+    private String initialSortBy;
+    private boolean initialIsAscending;
+    private float initialMinPrice;
+    private float initialMaxPrice;
+    private String initialCategory;
+    private String initialCondition;
+    private float initialDistance;
 
-    // Sửa hàm newInstance để nhận nhiều giá trị hơn
-    public static FilterBottomSheetFragment newInstance(String sortBy, boolean isAscending, float minPrice, float maxPrice, String category, String condition) {
+    public static FilterBottomSheetFragment newInstance(String sortBy, boolean isAscending, float minPrice, float maxPrice, String category, String condition, float distance) {
         FilterBottomSheetFragment fragment = new FilterBottomSheetFragment();
         Bundle args = new Bundle();
         args.putString("SORT_BY", sortBy);
@@ -46,8 +53,23 @@ public class FilterBottomSheetFragment extends BottomSheetDialogFragment {
         args.putFloat("MAX_PRICE", maxPrice);
         args.putString("CATEGORY", category);
         args.putString("CONDITION", condition);
+        args.putFloat("DISTANCE", distance);
         fragment.setArguments(args);
         return fragment;
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (getArguments() != null) {
+            initialSortBy = getArguments().getString("SORT_BY", "createdAt");
+            initialIsAscending = getArguments().getBoolean("IS_ASCENDING", false);
+            initialMinPrice = getArguments().getFloat("MIN_PRICE", 0);
+            initialMaxPrice = getArguments().getFloat("MAX_PRICE", 50000000);
+            initialCategory = getArguments().getString("CATEGORY", "Tất cả");
+            initialCondition = getArguments().getString("CONDITION", "Tất cả");
+            initialDistance = getArguments().getFloat("DISTANCE", 100.0f);
+        }
     }
 
     public void setFilterListener(FilterListener listener) {
@@ -59,20 +81,19 @@ public class FilterBottomSheetFragment extends BottomSheetDialogFragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_filter_bottom_sheet, container, false);
 
-        // Ánh xạ Views
         chipGroupSort = view.findViewById(R.id.chipGroupSort);
         chipGroupCondition = view.findViewById(R.id.chipGroupCondition);
         rangeSliderPrice = view.findViewById(R.id.rangeSliderPrice);
         spinnerCategory = view.findViewById(R.id.spinnerCategory);
+        sliderDistance = view.findViewById(R.id.sliderDistance);
+        textViewDistanceValue = view.findViewById(R.id.textViewDistanceValue);
         btnApplyFilter = view.findViewById(R.id.btnApplyFilter);
         btnResetFilter = view.findViewById(R.id.btnResetFilter);
 
-        // Setup Spinner
         setupSpinners();
+        setInitialState();
 
-        // Setup trạng thái ban đầu cho các View (phần này sẽ được nâng cấp sau)
-        // ...
-
+        sliderDistance.addOnChangeListener((slider, value, fromUser) -> updateDistanceText(value));
         btnApplyFilter.setOnClickListener(v -> applyFilters());
         btnResetFilter.setOnClickListener(v -> resetFilters());
 
@@ -80,11 +101,39 @@ public class FilterBottomSheetFragment extends BottomSheetDialogFragment {
     }
 
     private void setupSpinners() {
-        // Thêm "Tất cả" vào đầu danh sách
         ArrayAdapter<CharSequence> categoryAdapter = ArrayAdapter.createFromResource(getContext(),
                 R.array.category_array_with_all, android.R.layout.simple_spinner_item);
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCategory.setAdapter(categoryAdapter);
+    }
+
+    private void setInitialState() {
+        rangeSliderPrice.setValues(initialMinPrice, initialMaxPrice);
+        sliderDistance.setValue(initialDistance);
+        updateDistanceText(initialDistance);
+
+        if ("price".equals(initialSortBy)) {
+            if (initialIsAscending) chipGroupSort.check(R.id.chipSortPriceAsc);
+            else chipGroupSort.check(R.id.chipSortPriceDesc);
+        } else {
+            chipGroupSort.check(R.id.chipSortNewest);
+        }
+
+        if ("Mới".equals(initialCondition)) chipGroupCondition.check(R.id.chipConditionNew);
+        else if ("Đã qua sử dụng".equals(initialCondition)) chipGroupCondition.check(R.id.chipConditionUsed);
+        else chipGroupCondition.check(R.id.chipConditionAll);
+
+        ArrayAdapter<String> adapter = (ArrayAdapter<String>) spinnerCategory.getAdapter();
+        int position = adapter.getPosition(initialCategory);
+        spinnerCategory.setSelection(position >= 0 ? position : 0);
+    }
+
+    private void updateDistanceText(float value) {
+        if (value >= 100.0f) {
+            textViewDistanceValue.setText("Mọi khoảng cách");
+        } else {
+            textViewDistanceValue.setText(String.format(Locale.US, "< %.0f km", value));
+        }
     }
 
     private void applyFilters() {
@@ -93,7 +142,6 @@ public class FilterBottomSheetFragment extends BottomSheetDialogFragment {
             return;
         }
 
-        // 1. Lấy dữ liệu Sắp xếp (Sort)
         String sortBy = "createdAt";
         boolean isAscending = false;
         int selectedSortId = chipGroupSort.getCheckedChipId();
@@ -105,15 +153,12 @@ public class FilterBottomSheetFragment extends BottomSheetDialogFragment {
             isAscending = false;
         }
 
-        // 2. Lấy dữ liệu Khoảng giá (Price Range)
         List<Float> values = rangeSliderPrice.getValues();
         float minPrice = values.get(0);
         float maxPrice = values.get(1);
 
-        // 3. Lấy dữ liệu Danh mục (Category)
         String category = spinnerCategory.getSelectedItem().toString();
 
-        // 4. Lấy dữ liệu Tình trạng (Condition)
         String condition = "";
         int selectedConditionId = chipGroupCondition.getCheckedChipId();
         if (selectedConditionId != View.NO_ID) {
@@ -121,15 +166,15 @@ public class FilterBottomSheetFragment extends BottomSheetDialogFragment {
             condition = selectedChip.getText().toString();
         }
 
-        // Gửi tất cả dữ liệu về MainActivity
-        listener.onFilterApplied(sortBy, isAscending, minPrice, maxPrice, category, condition);
+        float distance = sliderDistance.getValue();
+
+        listener.onFilterApplied(sortBy, isAscending, minPrice, maxPrice, category, condition, distance);
         dismiss();
     }
 
     private void resetFilters() {
-        // Gửi về các giá trị mặc định
         if (listener != null) {
-            listener.onFilterApplied("createdAt", false, 0, 50000000, "Tất cả", "Tất cả");
+            listener.onFilterApplied("createdAt", false, 0, 50000000, "Tất cả", "Tất cả", 100.0f);
         }
         dismiss();
     }

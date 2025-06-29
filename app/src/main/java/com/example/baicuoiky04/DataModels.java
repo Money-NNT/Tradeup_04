@@ -5,18 +5,10 @@ import com.google.firebase.firestore.ServerTimestamp;
 import java.util.Date;
 import java.util.List;
 
-/**
- * Lớp container chứa tất cả các lớp model của ứng dụng để dễ quản lý.
- */
 public final class DataModels {
 
-    // Làm cho constructor private để không ai có thể tạo instance của lớp container này
-    private DataModels() {
-    }
+    private DataModels() {}
 
-    //================================================================================
-    // 1. LỚP MODEL CHO USER
-    //================================================================================
     public static class User {
         private String uid;
         private String displayName;
@@ -32,9 +24,8 @@ public final class DataModels {
         @ServerTimestamp
         private Date createdAt;
 
-        public User() {} // Constructor rỗng cho Firestore
+        public User() {}
 
-        // Getters and Setters
         public String getUid() { return uid; }
         public void setUid(String uid) { this.uid = uid; }
         public String getDisplayName() { return displayName; }
@@ -61,9 +52,6 @@ public final class DataModels {
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
     }
 
-    //================================================================================
-    // 2. LỚP MODEL CHO LISTING (SẢN PHẨM ĐĂNG BÁN)
-    //================================================================================
     public static class Listing {
         private String listingId;
         private String sellerId;
@@ -88,9 +76,8 @@ public final class DataModels {
         @ServerTimestamp
         private Date lastUpdatedAt;
 
-        public Listing() {} // Constructor rỗng cho Firestore
+        public Listing() {}
 
-        // Getters and Setters
         public String getListingId() { return listingId; }
         public void setListingId(String listingId) { this.listingId = listingId; }
         public String getSellerId() { return sellerId; }
@@ -133,9 +120,6 @@ public final class DataModels {
         public void setLastUpdatedAt(Date lastUpdatedAt) { this.lastUpdatedAt = lastUpdatedAt; }
     }
 
-    //================================================================================
-    // 3. LỚP MODEL CHO REVIEW (ĐÁNH GIÁ)
-    //================================================================================
     public static class Review {
         private String listingId;
         private String reviewerId;
@@ -146,9 +130,8 @@ public final class DataModels {
         @ServerTimestamp
         private Date createdAt;
 
-        public Review() {} // Constructor rỗng cho Firestore
+        public Review() {}
 
-        // Getters and Setters
         public String getListingId() { return listingId; }
         public void setListingId(String listingId) { this.listingId = listingId; }
         public String getReviewerId() { return reviewerId; }
@@ -165,9 +148,6 @@ public final class DataModels {
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
     }
 
-    //================================================================================
-    // 4. LỚP MODEL CHO OFFER (TRẢ GIÁ)
-    //================================================================================
     public static class Offer {
         private String buyerId;
         private String buyerName;
@@ -176,9 +156,8 @@ public final class DataModels {
         @ServerTimestamp
         private Date createdAt;
 
-        public Offer() {} // Constructor rỗng cho Firestore
+        public Offer() {}
 
-        // Getters and Setters
         public String getBuyerId() { return buyerId; }
         public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
         public String getBuyerName() { return buyerName; }

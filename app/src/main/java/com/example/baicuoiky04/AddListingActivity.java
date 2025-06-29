@@ -1,10 +1,19 @@
 package com.example.baicuoiky04;
 
+import android.Manifest;
 import android.content.ClipData;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Looper;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
@@ -15,15 +24,29 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.GeoPoint;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,7 +58,8 @@ public class AddListingActivity extends AppCompatActivity {
     private static final String TAG = "AddListingActivity";
     private static final int PICK_IMAGES_REQUEST = 1;
 
-    private TextInputEditText editTextTitle, editTextDescription, editTextPrice;
+    private TextInputEditText editTextTitle, editTextDescription, editTextPrice, editTextLocation;
+    private TextInputLayout textInputLayoutLocation;
     private Spinner spinnerCategory, spinnerCondition;
     private Button btnChooseImages, btnSubmitListing;
     private ProgressBar progressBar;
@@ -44,9 +68,22 @@ public class AddListingActivity extends AppCompatActivity {
     private FirebaseFirestore db;
     private FirebaseUser currentUser;
 
+    private FusedLocationProviderClient fusedLocationClient;
+    private LocationCallback locationCallback;
+    private GeoPoint currentLocationGeoPoint;
+
     private String listingIdToEdit;
     private boolean isEditMode = false;
     private ArrayList<Uri> newImageUris;
+
+    private final ActivityResultLauncher<String> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (isGranted) {
+                    checkGpsAndGetLocation();
+                } else {
+                    Toast.makeText(this, "Bạn cần cấp quyền vị trí để sử dụng tính năng này.", Toast.LENGTH_SHORT).show();
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,6 +93,7 @@ public class AddListingActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         currentUser = FirebaseAuth.getInstance().getCurrentUser();
         newImageUris = new ArrayList<>();
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
         initViews();
         setupSpinners();
@@ -78,6 +116,8 @@ public class AddListingActivity extends AppCompatActivity {
         btnSubmitListing = findViewById(R.id.btnSubmitListing);
         progressBar = findViewById(R.id.progressBar);
         textViewScreenTitle = findViewById(R.id.textViewScreenTitle);
+        editTextLocation = findViewById(R.id.editTextLocation);
+        textInputLayoutLocation = findViewById(R.id.textInputLayoutLocation);
     }
 
     private void setupSpinners() {
@@ -92,6 +132,7 @@ public class AddListingActivity extends AppCompatActivity {
     private void setupListeners() {
         btnChooseImages.setOnClickListener(v -> openImagePicker());
         btnSubmitListing.setOnClickListener(v -> handleSubmit());
+        textInputLayoutLocation.setEndIconOnClickListener(v -> checkLocationPermissionAndGetLocation());
     }
 
     private void openImagePicker() {
@@ -118,6 +159,8 @@ public class AddListingActivity extends AppCompatActivity {
         editTextTitle.setText(listing.getTitle());
         editTextDescription.setText(listing.getDescription());
         editTextPrice.setText(String.valueOf(listing.getPrice()));
+        editTextLocation.setText(listing.getLocationName());
+        currentLocationGeoPoint = listing.getLocationGeoPoint();
 
         ArrayAdapter<CharSequence> categoryAdapter = (ArrayAdapter<CharSequence>) spinnerCategory.getAdapter();
         spinnerCategory.setSelection(categoryAdapter.getPosition(listing.getCategory()));
@@ -125,7 +168,6 @@ public class AddListingActivity extends AppCompatActivity {
         ArrayAdapter<CharSequence> conditionAdapter = (ArrayAdapter<CharSequence>) spinnerCondition.getAdapter();
         spinnerCondition.setSelection(conditionAdapter.getPosition(listing.getCondition()));
     }
-
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
@@ -143,6 +185,72 @@ public class AddListingActivity extends AppCompatActivity {
         }
     }
 
+    private void checkLocationPermissionAndGetLocation() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            checkGpsAndGetLocation();
+        } else {
+            requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
+    }
+
+    private void checkGpsAndGetLocation() {
+        LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Yêu cầu bật GPS")
+                    .setMessage("Để lấy vị trí chính xác, bạn cần bật GPS. Bạn có muốn bật ngay bây giờ không?")
+                    .setPositiveButton("Cài đặt", (dialog, which) -> startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)))
+                    .setNegativeButton("Hủy", null)
+                    .show();
+        } else {
+            requestNewLocationData();
+        }
+    }
+
+    private void requestNewLocationData() {
+        Toast.makeText(this, "Đang lấy vị trí, vui lòng chờ...", Toast.LENGTH_SHORT).show();
+
+        LocationRequest locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000).build();
+
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                Location lastLocation = locationResult.getLastLocation();
+                if (lastLocation != null) {
+                    currentLocationGeoPoint = new GeoPoint(lastLocation.getLatitude(), lastLocation.getLongitude());
+                    getAddressFromLocation(currentLocationGeoPoint);
+                    fusedLocationClient.removeLocationUpdates(locationCallback);
+                }
+            }
+        };
+
+        try {
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
+        } catch (SecurityException e) {
+            Log.e(TAG, "Location permission not granted, cannot request updates.", e);
+        }
+    }
+
+    private void getAddressFromLocation(GeoPoint geoPoint) {
+        Geocoder geocoder = new Geocoder(this, Locale.getDefault());
+        try {
+            List<Address> addresses = geocoder.getFromLocation(geoPoint.getLatitude(), geoPoint.getLongitude(), 1);
+            if (addresses != null && !addresses.isEmpty()) {
+                Address address = addresses.get(0);
+                String subLocality = address.getSubLocality() != null ? address.getSubLocality() : "";
+                String city = address.getAdminArea() != null ? address.getAdminArea() : "";
+                String addressString = subLocality + ", " + city;
+                editTextLocation.setText(addressString.startsWith(", ") ? addressString.substring(2) : addressString);
+            } else {
+                editTextLocation.setText("Không tìm thấy địa chỉ");
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Geocoder service not available", e);
+            editTextLocation.setText("Lỗi dịch vụ địa chỉ");
+        }
+    }
+
     private void handleSubmit() {
         if (!validateInput()) {
             return;
@@ -152,9 +260,7 @@ public class AddListingActivity extends AppCompatActivity {
         if (isEditMode) {
             updateListing();
         } else {
-            ArrayList<String> dummyImageUrls = new ArrayList<>();
-            dummyImageUrls.add("https://via.placeholder.com/400x300.png?text=" + editTextTitle.getText().toString().replace(" ", "+"));
-            saveListingToFirestore(dummyImageUrls);
+            saveListingToFirestore(new ArrayList<>());
         }
     }
 
@@ -162,6 +268,7 @@ public class AddListingActivity extends AppCompatActivity {
         if (TextUtils.isEmpty(editTextTitle.getText())) { editTextTitle.setError("Tiêu đề không được để trống"); return false; }
         if (TextUtils.isEmpty(editTextDescription.getText())) { editTextDescription.setError("Mô tả không được để trống"); return false; }
         if (TextUtils.isEmpty(editTextPrice.getText())) { editTextPrice.setError("Giá không được để trống"); return false; }
+        if (TextUtils.isEmpty(editTextLocation.getText())) { editTextLocation.setError("Địa điểm không được để trống"); return false; }
         return true;
     }
 
@@ -172,6 +279,10 @@ public class AddListingActivity extends AppCompatActivity {
         updates.put("price", Long.parseLong(editTextPrice.getText().toString()));
         updates.put("category", spinnerCategory.getSelectedItem().toString());
         updates.put("condition", spinnerCondition.getSelectedItem().toString());
+        updates.put("locationName", editTextLocation.getText().toString().trim());
+        if (currentLocationGeoPoint != null) {
+            updates.put("locationGeoPoint", currentLocationGeoPoint);
+        }
 
         ArrayList<String> tags = new ArrayList<>();
         String[] titleWords = editTextTitle.getText().toString().trim().toLowerCase(Locale.ROOT).split("\\s+");
@@ -205,7 +316,10 @@ public class AddListingActivity extends AppCompatActivity {
         newListing.setPrice(Long.parseLong(editTextPrice.getText().toString()));
         newListing.setCategory(spinnerCategory.getSelectedItem().toString());
         newListing.setCondition(spinnerCondition.getSelectedItem().toString());
-        newListing.setLocationName("Hà Nội, Việt Nam"); // Tạm thời hard-code
+        newListing.setLocationName(editTextLocation.getText().toString().trim());
+        if (currentLocationGeoPoint != null) {
+            newListing.setLocationGeoPoint(currentLocationGeoPoint);
+        }
         newListing.setImageUrls(imageUrls);
         newListing.setStatus("available");
         newListing.setViews(0);
@@ -215,13 +329,15 @@ public class AddListingActivity extends AppCompatActivity {
         ArrayList<String> tags = new ArrayList<>();
         String[] titleWords = newListing.getTitle().toLowerCase(Locale.ROOT).split("\\s+");
         for (String word : titleWords) {
-            tags.add(word.replaceAll("[^a-z0-9]", ""));
+            if (!word.trim().isEmpty()) {
+                tags.add(word.replaceAll("[^a-z0-9]", ""));
+            }
         }
         newListing.setTags(tags);
 
         db.collection("listings").document(listingId).set(newListing)
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Đăng tin (test) thành công!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Đăng tin (không ảnh) thành công!", Toast.LENGTH_SHORT).show();
                     setLoading(false);
                     finish();
                 })

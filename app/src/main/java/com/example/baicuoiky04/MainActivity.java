@@ -1,7 +1,11 @@
 package com.example.baicuoiky04;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -11,6 +15,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.recyclerview.widget.GridLayoutManager;
@@ -27,11 +32,20 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
-public class MainActivity extends AppCompatActivity implements BottomNavigationView.OnItemSelectedListener {
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+
+
+public class MainActivity extends AppCompatActivity implements BottomNavigationView.OnItemSelectedListener, FilterBottomSheetFragment.FilterListener {
+
+    private static final String TAG = "MainActivity";
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
+    private FusedLocationProviderClient fusedLocationClient;
 
     private RecyclerView recyclerViewListings;
     private FrameLayout fragmentContainer;
@@ -43,6 +57,16 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     private FloatingActionButton fabAddItem;
 
     private List<DataModels.Listing> listingList;
+    private Location lastKnownLocation;
+
+    private String currentKeyword = "";
+    private String currentSortBy = "createdAt";
+    private Query.Direction currentSortDirection = Query.Direction.DESCENDING;
+    private float currentMinPrice = 0;
+    private float currentMaxPrice = 50000000;
+    private String currentCategory = "Tất cả";
+    private String currentCondition = "Tất cả";
+    private float currentDistance = 100.0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,6 +75,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
 
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
         checkUserStatus();
         initViews();
@@ -66,9 +91,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     @Override
     protected void onResume() {
         super.onResume();
-        if (recyclerViewListings.getVisibility() == View.VISIBLE) {
-            fetchListings();
-        }
+        requestLocationAndFetchData();
     }
 
     private void checkUserStatus() {
@@ -135,9 +158,9 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         appBarLayout.setVisibility(View.GONE);
         fragmentContainer.setVisibility(View.VISIBLE);
 
-        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-        transaction.replace(R.id.fragment_container, fragment);
-        transaction.commit();
+        getSupportFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .commit();
     }
 
     private void showHomeContent() {
@@ -150,28 +173,121 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         );
     }
 
-    private void fetchListings() {
-        progressBar.setVisibility(View.VISIBLE);
-        Query query = db.collection("listings")
-                .whereEqualTo("status", "available")
-                .orderBy("createdAt", Query.Direction.DESCENDING);
+    private void openFilterDialog() {
+        // This method is now handled by the SearchActivity.
+        // If needed here, you'd call FilterBottomSheetFragment.
+    }
 
-        query.get()
-                .addOnCompleteListener(task -> {
-                    progressBar.setVisibility(View.GONE);
-                    if (task.isSuccessful()) {
-                        listingList.clear();
-                        for (QueryDocumentSnapshot document : task.getResult()) {
-                            listingList.add(document.toObject(DataModels.Listing.class));
-                        }
-                        listingAdapter.notifyDataSetChanged();
-                        if (listingList.isEmpty()) {
-                            Toast.makeText(this, "Chưa có sản phẩm nào được đăng.", Toast.LENGTH_SHORT).show();
-                        }
-                    } else {
-                        Toast.makeText(MainActivity.this, "Lỗi tải dữ liệu.", Toast.LENGTH_SHORT).show();
+    @Override
+    public void onFilterApplied(String sortBy, boolean isAscending, float minPrice, float maxPrice, String category, String condition, float distance) {
+        this.currentSortBy = sortBy;
+        this.currentSortDirection = isAscending ? Query.Direction.ASCENDING : Query.Direction.DESCENDING;
+        this.currentMinPrice = minPrice;
+        this.currentMaxPrice = maxPrice;
+        this.currentCategory = category;
+        this.currentCondition = "Tất cả".equalsIgnoreCase(condition) ? "" : condition;
+        this.currentDistance = distance;
+
+        fetchListings();
+    }
+
+    private void requestLocationAndFetchData() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+            return;
+        }
+        fusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, location -> {
+                    lastKnownLocation = location;
+                    if (recyclerViewListings.getVisibility() == View.VISIBLE) {
+                        fetchListings();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    if (recyclerViewListings.getVisibility() == View.VISIBLE) {
+                        fetchListings();
                     }
                 });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                requestLocationAndFetchData();
+            } else {
+                Toast.makeText(this, "Quyền vị trí bị từ chối. Không thể lọc theo khoảng cách.", Toast.LENGTH_SHORT).show();
+                fetchListings();
+            }
+        }
+    }
+
+    private void fetchListings() {
+        progressBar.setVisibility(View.VISIBLE);
+
+        Query query = db.collection("listings").whereEqualTo("status", "available");
+
+        if (!currentCategory.equals("Tất cả")) {
+            query = query.whereEqualTo("category", currentCategory);
+        }
+        if (currentCondition != null && !currentCondition.isEmpty() && !"Tất cả".equalsIgnoreCase(currentCondition)) {
+            query = query.whereEqualTo("condition", currentCondition);
+        }
+        if (currentMinPrice > 0) {
+            query = query.whereGreaterThanOrEqualTo("price", currentMinPrice);
+        }
+        if (currentMaxPrice < 50000000) {
+            query = query.whereLessThanOrEqualTo("price", currentMaxPrice);
+        }
+
+        if (currentSortBy.equals("price")) {
+            query = query.orderBy(currentSortBy, currentSortDirection);
+        } else {
+            if (currentMinPrice > 0 || currentMaxPrice < 50000000) {
+                query = query.orderBy("price");
+            }
+            query = query.orderBy(currentSortBy, currentSortDirection);
+        }
+
+        query.get().addOnCompleteListener(task -> {
+            progressBar.setVisibility(View.GONE);
+            if (task.isSuccessful()) {
+                List<DataModels.Listing> fetchedListings = new ArrayList<>();
+                for (QueryDocumentSnapshot document : task.getResult()) {
+                    fetchedListings.add(document.toObject(DataModels.Listing.class));
+                }
+                filterAndDisplayListings(fetchedListings);
+            } else {
+                Toast.makeText(MainActivity.this, "Lỗi tải dữ liệu.", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void filterAndDisplayListings(List<DataModels.Listing> fetchedListings) {
+        List<DataModels.Listing> finalList;
+        if (currentDistance >= 100.0f || lastKnownLocation == null) {
+            finalList = fetchedListings;
+        } else {
+            finalList = fetchedListings.stream()
+                    .filter(listing -> {
+                        if (listing.getLocationGeoPoint() == null) return false;
+                        Location itemLocation = new Location("");
+                        itemLocation.setLatitude(listing.getLocationGeoPoint().getLatitude());
+                        itemLocation.setLongitude(listing.getLocationGeoPoint().getLongitude());
+                        float distanceInKm = lastKnownLocation.distanceTo(itemLocation) / 1000;
+                        return distanceInKm <= currentDistance;
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        listingList.clear();
+        listingList.addAll(finalList);
+        listingAdapter.notifyDataSetChanged();
+
+        if (listingList.isEmpty()) {
+            Toast.makeText(this, "Không tìm thấy sản phẩm nào phù hợp.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void goToLoginActivity() {

@@ -85,9 +85,6 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
             } else if ("paused".equalsIgnoreCase(status)) {
                 textViewStatus.setText("TẠM DỪNG");
                 textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.status_paused)));
-            } else {
-                textViewStatus.setText(status.toUpperCase());
-                textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.light_gray)));
             }
 
             if (listing.getImageUrls() != null && !listing.getImageUrls().isEmpty()) {
@@ -96,7 +93,6 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
 
             buttonMoreOptions.setOnClickListener(v -> showPopupMenu(v, listing, listener));
 
-            // THÊM SỰ KIỆN CLICK MỚI
             itemView.setOnClickListener(v -> {
                 Intent intent = new Intent(context, OffersActivity.class);
                 intent.putExtra("LISTING_ID", listing.getListingId());
@@ -107,6 +103,7 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
         private void showPopupMenu(View view, DataModels.Listing listing, OnActionListener listener) {
             PopupMenu popup = new PopupMenu(context, view);
             popup.getMenuInflater().inflate(R.menu.manage_listing_menu, popup.getMenu());
+
             popup.setOnMenuItemClickListener(item -> {
                 int itemId = item.getItemId();
                 if (itemId == R.id.action_edit) {

@@ -8,5 +8,5 @@
         android:title="Xóa tin"/>
     <item
         android:id="@+id/action_change_status"
-        android:title="Đổi trạng thái (Đã bán/Tạm dừng)"/>
+        android:title="Đổi trạng thái"/>
 </menu>
