@@ -31,7 +31,12 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
+import com.cloudinary.android.MediaManager;
+import com.cloudinary.android.callback.ErrorInfo;
+import com.cloudinary.android.callback.UploadCallback;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
@@ -48,12 +53,14 @@ import com.google.firebase.firestore.GeoPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
-public class AddListingActivity extends AppCompatActivity {
+public class AddListingActivity extends AppCompatActivity implements ImagePreviewAdapter.OnImageRemoveListener {
 
     private static final String TAG = "AddListingActivity";
     private static final int PICK_IMAGES_REQUEST = 1;
@@ -64,10 +71,10 @@ public class AddListingActivity extends AppCompatActivity {
     private Button btnChooseImages, btnSubmitListing;
     private ProgressBar progressBar;
     private TextView textViewScreenTitle;
+    private RecyclerView recyclerViewSelectedImages;
 
     private FirebaseFirestore db;
     private FirebaseUser currentUser;
-
     private FusedLocationProviderClient fusedLocationClient;
     private LocationCallback locationCallback;
     private GeoPoint currentLocationGeoPoint;
@@ -75,6 +82,7 @@ public class AddListingActivity extends AppCompatActivity {
     private String listingIdToEdit;
     private boolean isEditMode = false;
     private ArrayList<Uri> newImageUris;
+    private ImagePreviewAdapter imagePreviewAdapter;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
@@ -97,6 +105,7 @@ public class AddListingActivity extends AppCompatActivity {
 
         initViews();
         setupSpinners();
+        setupImagePreviewRecyclerView();
         setupListeners();
 
         if (getIntent().hasExtra("LISTING_ID")) {
@@ -118,6 +127,7 @@ public class AddListingActivity extends AppCompatActivity {
         textViewScreenTitle = findViewById(R.id.textViewScreenTitle);
         editTextLocation = findViewById(R.id.editTextLocation);
         textInputLayoutLocation = findViewById(R.id.textInputLayoutLocation);
+        recyclerViewSelectedImages = findViewById(R.id.recyclerViewSelectedImages);
     }
 
     private void setupSpinners() {
@@ -127,6 +137,12 @@ public class AddListingActivity extends AppCompatActivity {
         ArrayAdapter<CharSequence> conditionAdapter = ArrayAdapter.createFromResource(this, R.array.condition_array, android.R.layout.simple_spinner_item);
         conditionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCondition.setAdapter(conditionAdapter);
+    }
+
+    private void setupImagePreviewRecyclerView() {
+        imagePreviewAdapter = new ImagePreviewAdapter(this, newImageUris, this);
+        recyclerViewSelectedImages.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        recyclerViewSelectedImages.setAdapter(imagePreviewAdapter);
     }
 
     private void setupListeners() {
@@ -181,8 +197,27 @@ public class AddListingActivity extends AppCompatActivity {
             } else if (data.getData() != null) {
                 newImageUris.add(data.getData());
             }
-            btnChooseImages.setText(newImageUris.size() + " ảnh đã được chọn");
+            updateImagePreview();
         }
+    }
+
+    @Override
+    public void onImageRemoved(int position) {
+        if (position >= 0 && position < newImageUris.size()) {
+            newImageUris.remove(position);
+            updateImagePreview();
+        }
+    }
+
+    private void updateImagePreview() {
+        if (newImageUris.isEmpty()) {
+            recyclerViewSelectedImages.setVisibility(View.GONE);
+            btnChooseImages.setText("Chọn ảnh sản phẩm (tối đa 10)");
+        } else {
+            recyclerViewSelectedImages.setVisibility(View.VISIBLE);
+            btnChooseImages.setText(newImageUris.size() + "/10 ảnh đã được chọn");
+        }
+        imagePreviewAdapter.notifyDataSetChanged();
     }
 
     private void checkLocationPermissionAndGetLocation() {
@@ -209,9 +244,7 @@ public class AddListingActivity extends AppCompatActivity {
 
     private void requestNewLocationData() {
         Toast.makeText(this, "Đang lấy vị trí, vui lòng chờ...", Toast.LENGTH_SHORT).show();
-
         LocationRequest locationRequest = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000).build();
-
         locationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(@NonNull LocationResult locationResult) {
@@ -224,7 +257,6 @@ public class AddListingActivity extends AppCompatActivity {
                 }
             }
         };
-
         try {
             fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
         } catch (SecurityException e) {
@@ -242,26 +274,66 @@ public class AddListingActivity extends AppCompatActivity {
                 String city = address.getAdminArea() != null ? address.getAdminArea() : "";
                 String addressString = subLocality + ", " + city;
                 editTextLocation.setText(addressString.startsWith(", ") ? addressString.substring(2) : addressString);
-            } else {
-                editTextLocation.setText("Không tìm thấy địa chỉ");
             }
         } catch (IOException e) {
             Log.e(TAG, "Geocoder service not available", e);
-            editTextLocation.setText("Lỗi dịch vụ địa chỉ");
         }
     }
 
     private void handleSubmit() {
-        if (!validateInput()) {
-            return;
-        }
+        if (!validateInput()) return;
         setLoading(true);
-
         if (isEditMode) {
             updateListing();
         } else {
-            saveListingToFirestore(new ArrayList<>());
+            if (newImageUris.isEmpty()) {
+                Toast.makeText(this, "Vui lòng chọn ít nhất một ảnh", Toast.LENGTH_SHORT).show();
+                setLoading(false);
+                return;
+            }
+            uploadImagesToCloudinary();
         }
+    }
+
+    private void uploadImagesToCloudinary() {
+        final List<String> uploadedImageUrls = Collections.synchronizedList(new ArrayList<>());
+        final CountDownLatch latch = new CountDownLatch(newImageUris.size());
+
+        for (Uri imageUri : newImageUris) {
+            MediaManager.get().upload(imageUri).callback(new UploadCallback() {
+                @Override
+                public void onSuccess(String requestId, Map resultData) {
+                    uploadedImageUrls.add(resultData.get("secure_url").toString());
+                    latch.countDown();
+                }
+                @Override
+                public void onError(String requestId, ErrorInfo error) {
+                    latch.countDown();
+                }
+                @Override
+                public void onStart(String requestId) {}
+                @Override
+                public void onProgress(String requestId, long bytes, long totalBytes) {}
+                @Override
+                public void onReschedule(String requestId, ErrorInfo error) {}
+            }).dispatch();
+        }
+
+        new Thread(() -> {
+            try {
+                latch.await();
+                runOnUiThread(() -> {
+                    if (uploadedImageUrls.size() == newImageUris.size()) {
+                        saveListingToFirestore(uploadedImageUrls);
+                    } else {
+                        Toast.makeText(this, "Có lỗi xảy ra khi tải ảnh lên.", Toast.LENGTH_SHORT).show();
+                        setLoading(false);
+                    }
+                });
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
     }
 
     private boolean validateInput() {
@@ -273,6 +345,7 @@ public class AddListingActivity extends AppCompatActivity {
     }
 
     private void updateListing() {
+        // Tạm thời chưa xử lý upload ảnh khi sửa
         Map<String, Object> updates = new HashMap<>();
         updates.put("title", editTextTitle.getText().toString().trim());
         updates.put("description", editTextDescription.getText().toString().trim());
@@ -283,23 +356,13 @@ public class AddListingActivity extends AppCompatActivity {
         if (currentLocationGeoPoint != null) {
             updates.put("locationGeoPoint", currentLocationGeoPoint);
         }
-
-        ArrayList<String> tags = new ArrayList<>();
-        String[] titleWords = editTextTitle.getText().toString().trim().toLowerCase(Locale.ROOT).split("\\s+");
-        for (String word : titleWords) {
-            tags.add(word.replaceAll("[^a-z0-9]", ""));
-        }
-        updates.put("tags", tags);
         updates.put("lastUpdatedAt", FieldValue.serverTimestamp());
-
         db.collection("listings").document(listingIdToEdit).update(updates)
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Cập nhật tin đăng thành công!", Toast.LENGTH_SHORT).show();
                     setLoading(false);
                     finish();
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     setLoading(false);
                 });
     }
@@ -322,9 +385,6 @@ public class AddListingActivity extends AppCompatActivity {
         }
         newListing.setImageUrls(imageUrls);
         newListing.setStatus("available");
-        newListing.setViews(0);
-        newListing.setOffersCount(0);
-        newListing.setNegotiable(true);
 
         ArrayList<String> tags = new ArrayList<>();
         String[] titleWords = newListing.getTitle().toLowerCase(Locale.ROOT).split("\\s+");
@@ -337,7 +397,7 @@ public class AddListingActivity extends AppCompatActivity {
 
         db.collection("listings").document(listingId).set(newListing)
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Đăng tin (không ảnh) thành công!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Đăng tin thành công!", Toast.LENGTH_SHORT).show();
                     setLoading(false);
                     finish();
                 })
@@ -348,12 +408,7 @@ public class AddListingActivity extends AppCompatActivity {
     }
 
     private void setLoading(boolean isLoading) {
-        if (isLoading) {
-            progressBar.setVisibility(View.VISIBLE);
-            btnSubmitListing.setEnabled(false);
-        } else {
-            progressBar.setVisibility(View.GONE);
-            btnSubmitListing.setEnabled(true);
-        }
+        progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
+        btnSubmitListing.setEnabled(!isLoading);
     }
 }

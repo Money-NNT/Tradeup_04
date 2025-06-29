@@ -12,6 +12,4 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-
-rootProject.name = "BaiCuoiKy04"
 include(":app")

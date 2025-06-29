@@ -61,6 +61,7 @@
                 android:layout_height="wrap_content"
                 android:inputType="number"/>
         </com.google.android.material.textfield.TextInputLayout>
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/textInputLayoutLocation"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
@@ -78,6 +79,7 @@
                 android:inputType="text" />
 
         </com.google.android.material.textfield.TextInputLayout>
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -86,7 +88,7 @@
         <Spinner
             android:id="@+id/spinnerCategory"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_marginTop="8dp"/>
 
         <TextView
@@ -97,7 +99,7 @@
         <Spinner
             android:id="@+id/spinnerCondition"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_marginTop="8dp"/>
 
         <Button
@@ -107,6 +109,18 @@
             android:layout_height="wrap_content"
             android:text="Chọn ảnh sản phẩm (tối đa 10)"
             android:layout_marginTop="24dp"/>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerViewSelectedImages"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:listitem="@layout/item_selected_image"
+            tools:itemCount="3"/>
 
         <ProgressBar
             android:id="@+id/progressBar"
