@@ -1,5 +1,6 @@
 package com.example.baicuoiky04;
 
+import com.google.firebase.firestore.Exclude;
 import com.google.firebase.firestore.GeoPoint;
 import com.google.firebase.firestore.ServerTimestamp;
 import java.util.Date;
@@ -76,6 +77,9 @@ public final class DataModels {
         @ServerTimestamp
         private Date lastUpdatedAt;
 
+        @Exclude
+        private float distanceToUser = -1;
+
         public Listing() {}
 
         public String getListingId() { return listingId; }
@@ -93,7 +97,7 @@ public final class DataModels {
         public long getPrice() { return price; }
         public void setPrice(long price) { this.price = price; }
         public boolean isNegotiable() { return isNegotiable; }
-        public void setNegotiable(boolean negotiable) { isNegotiable = negotiable; }
+        public void setNegotiable(boolean negotiable) { this.isNegotiable = negotiable; }
         public String getCategory() { return category; }
         public void setCategory(String category) { this.category = category; }
         public String getCondition() { return condition; }
@@ -118,6 +122,10 @@ public final class DataModels {
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
         public Date getLastUpdatedAt() { return lastUpdatedAt; }
         public void setLastUpdatedAt(Date lastUpdatedAt) { this.lastUpdatedAt = lastUpdatedAt; }
+
+        @Exclude
+        public float getDistanceToUser() { return distanceToUser; }
+        public void setDistanceToUser(float distanceToUser) { this.distanceToUser = distanceToUser; }
     }
 
     public static class Review {
@@ -168,5 +176,17 @@ public final class DataModels {
         public void setStatus(String status) { this.status = status; }
         public Date getCreatedAt() { return createdAt; }
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+    }
+    public static class OfferWithListing {
+        private Offer offer;
+        private Listing listing;
+
+        public OfferWithListing(Offer offer, Listing listing) {
+            this.offer = offer;
+            this.listing = listing;
+        }
+
+        public Offer getOffer() { return offer; }
+        public Listing getListing() { return listing; }
     }
 }

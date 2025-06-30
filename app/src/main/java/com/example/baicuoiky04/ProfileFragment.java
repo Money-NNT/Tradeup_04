@@ -1,10 +1,15 @@
 package com.example.baicuoiky04;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,8 +19,12 @@ import android.widget.RatingBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import com.bumptech.glide.Glide;
@@ -23,26 +32,31 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Locale;
+import java.util.UUID;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
 public class ProfileFragment extends Fragment {
 
     private static final String TAG = "ProfileFragment";
-    private static final int PICK_IMAGE_REQUEST = 1;
 
     private CircleImageView profileImageView;
     private FloatingActionButton fabChangeImage;
-    private TextView textViewDisplayName, textViewRatingValue, textViewTotalTransactions, textViewBio;
+    private TextView textViewDisplayName, textViewRatingValue, textViewTotalTransactions, textViewBio, textViewContactInfo;
     private RatingBar ratingBar;
     private LinearLayout ownerActionsLayout;
     private MaterialButton buttonEditProfile, buttonLogout, buttonDeactivate, buttonDelete;
+    private MaterialButton buttonPurchaseHistory, buttonSalesHistory, buttonOfferHistory;
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
@@ -51,7 +65,10 @@ public class ProfileFragment extends Fragment {
     private ListenerRegistration userProfileListener;
 
     private String userIdToView;
-    private Uri imageUri;
+    private DataModels.User currentUserData;
+
+    private ActivityResultLauncher<String> requestPermissionLauncher;
+    private ActivityResultLauncher<Intent> pickImageLauncher;
 
     public static ProfileFragment newInstance(String userId) {
         ProfileFragment fragment = new ProfileFragment();
@@ -74,7 +91,31 @@ public class ProfileFragment extends Fragment {
         } else if (currentUser != null) {
             userIdToView = currentUser.getUid();
         }
+
+        initializeLaunchers();
     }
+
+    private void initializeLaunchers() {
+        // Launcher để xin quyền
+        requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+            if (isGranted) {
+                openImagePicker();
+            } else {
+                Toast.makeText(getContext(), "Bạn cần cấp quyền để thay đổi ảnh.", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Launcher để chọn ảnh
+        pickImageLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null && result.getData().getData() != null) {
+                Uri imageUri = result.getData().getData();
+                // Hiển thị ảnh mới ngay lập tức để người dùng thấy
+                Glide.with(this).load(imageUri).into(profileImageView);
+                compressAndUploadImage(imageUri);
+            }
+        });
+    }
+
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -109,11 +150,15 @@ public class ProfileFragment extends Fragment {
         textViewRatingValue = view.findViewById(R.id.textViewRatingValue);
         textViewTotalTransactions = view.findViewById(R.id.textViewTotalTransactions);
         textViewBio = view.findViewById(R.id.textViewBio);
+        textViewContactInfo = view.findViewById(R.id.textViewContactInfo);
         ownerActionsLayout = view.findViewById(R.id.ownerActionsLayout);
         buttonEditProfile = view.findViewById(R.id.buttonEditProfile);
         buttonLogout = view.findViewById(R.id.buttonLogout);
         buttonDeactivate = view.findViewById(R.id.buttonDeactivate);
         buttonDelete = view.findViewById(R.id.buttonDelete);
+        buttonPurchaseHistory = view.findViewById(R.id.buttonPurchaseHistory);
+        buttonSalesHistory = view.findViewById(R.id.buttonSalesHistory);
+        buttonOfferHistory = view.findViewById(R.id.buttonOfferHistory);
     }
 
     private void attachUserProfileListener(String userId) {
@@ -126,6 +171,7 @@ public class ProfileFragment extends Fragment {
                     if (documentSnapshot != null && documentSnapshot.exists()) {
                         DataModels.User user = documentSnapshot.toObject(DataModels.User.class);
                         if (user != null) {
+                            currentUserData = user;
                             updateUI(user);
                         }
                     }
@@ -136,14 +182,29 @@ public class ProfileFragment extends Fragment {
         if (getContext() == null) return;
 
         textViewDisplayName.setText(user.getDisplayName());
+
         String bio = user.getBio();
-        textViewBio.setText(bio != null && !bio.isEmpty() ? bio : "Chưa có giới thiệu.");
+        if (TextUtils.isEmpty(bio)) {
+            textViewBio.setVisibility(View.GONE);
+        } else {
+            textViewBio.setVisibility(View.VISIBLE);
+            textViewBio.setText(bio);
+        }
+
+        String contactInfo = user.getContactInfo();
+        if (TextUtils.isEmpty(contactInfo)) {
+            textViewContactInfo.setVisibility(View.GONE);
+        } else {
+            textViewContactInfo.setVisibility(View.VISIBLE);
+            textViewContactInfo.setText(contactInfo);
+        }
+
         ratingBar.setRating((float) user.getAverageRating());
         textViewRatingValue.setText(String.format(Locale.US, "%.1f", user.getAverageRating()));
         textViewTotalTransactions.setText(String.format(Locale.US, "%d giao dịch thành công", user.getTotalTransactions()));
 
         if (user.getPhotoUrl() != null && !user.getPhotoUrl().isEmpty()) {
-            Glide.with(getContext()).load(user.getPhotoUrl()).placeholder(R.drawable.ic_profile_placeholder).into(profileImageView);
+            Glide.with(this).load(user.getPhotoUrl()).placeholder(R.drawable.ic_profile_placeholder).into(profileImageView);
         } else {
             profileImageView.setImageResource(R.drawable.ic_profile_placeholder);
         }
@@ -160,12 +221,17 @@ public class ProfileFragment extends Fragment {
         ownerActionsLayout.setVisibility(View.VISIBLE);
         fabChangeImage.setVisibility(View.VISIBLE);
 
-        fabChangeImage.setOnClickListener(v -> openFileChooser());
+        fabChangeImage.setOnClickListener(v -> checkPermissionAndPickImage());
 
         buttonEditProfile.setOnClickListener(v -> {
+            if (currentUserData == null) {
+                Toast.makeText(getContext(), "Đang tải dữ liệu, vui lòng thử lại.", Toast.LENGTH_SHORT).show();
+                return;
+            }
             Intent intent = new Intent(getActivity(), EditProfileActivity.class);
-            intent.putExtra("CURRENT_DISPLAY_NAME", textViewDisplayName.getText().toString());
-            intent.putExtra("CURRENT_BIO", textViewBio.getText().toString());
+            intent.putExtra("CURRENT_DISPLAY_NAME", currentUserData.getDisplayName());
+            intent.putExtra("CURRENT_BIO", currentUserData.getBio());
+            intent.putExtra("CURRENT_CONTACT_INFO", currentUserData.getContactInfo());
             startActivity(intent);
         });
 
@@ -176,37 +242,111 @@ public class ProfileFragment extends Fragment {
 
         buttonDeactivate.setOnClickListener(v -> showConfirmationDialog("Hủy kích hoạt", "Bạn có chắc chắn muốn tạm thời vô hiệu hóa tài khoản?", this::deactivateAccount));
         buttonDelete.setOnClickListener(v -> showConfirmationDialog("Xóa tài khoản vĩnh viễn", "Hành động này không thể hoàn tác.", this::deleteAccount));
+        buttonPurchaseHistory.setOnClickListener(v -> openHistory(HistoryActivity.TYPE_PURCHASE));
+        buttonSalesHistory.setOnClickListener(v -> openHistory(HistoryActivity.TYPE_SALES));
+        buttonOfferHistory.setOnClickListener(v -> startActivity(new Intent(getActivity(), MyOffersActivity.class)));
     }
 
-    private void openFileChooser() {
+
+    private void checkPermissionAndPickImage() {
+        String permission;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permission = Manifest.permission.READ_MEDIA_IMAGES;
+        } else {
+            permission = Manifest.permission.READ_EXTERNAL_STORAGE;
+        }
+
+        if (ContextCompat.checkSelfPermission(requireContext(), permission) == PackageManager.PERMISSION_GRANTED) {
+            openImagePicker();
+        } else {
+            requestPermissionLauncher.launch(permission);
+        }
+    }
+
+    private void openImagePicker() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        startActivityForResult(intent, PICK_IMAGE_REQUEST);
+        pickImageLauncher.launch(intent);
     }
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK && data != null && data.getData() != null) {
-            imageUri = data.getData();
-            uploadImageToFirebaseStorage();
+    private void compressAndUploadImage(Uri imageUri) {
+        try {
+            Bitmap bitmap = MediaStore.Images.Media.getBitmap(requireContext().getContentResolver(), imageUri);
+
+            int originalWidth = bitmap.getWidth();
+            int originalHeight = bitmap.getHeight();
+            float aspectRatio = (float) originalWidth / (float) originalHeight;
+            int targetWidth = 800;
+            int targetHeight = Math.round(targetWidth / aspectRatio);
+
+            Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, false);
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos);
+            byte[] data = baos.toByteArray();
+
+            uploadImageToFirebaseStorage(data);
+
+        } catch (IOException e) {
+            Toast.makeText(getContext(), "Lỗi khi xử lý ảnh.", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Error processing image", e);
         }
     }
 
-    private void uploadImageToFirebaseStorage() {
-        if (imageUri != null && currentUser != null) {
-            Toast.makeText(getContext(), "Đang tải ảnh lên...", Toast.LENGTH_SHORT).show();
-            StorageReference fileReference = storage.getReference("profile_pics").child(currentUser.getUid());
-            fileReference.putFile(imageUri)
-                    .addOnSuccessListener(taskSnapshot -> fileReference.getDownloadUrl().addOnSuccessListener(this::updateProfileImageUrl))
-                    .addOnFailureListener(e -> Toast.makeText(getContext(), "Upload thất bại: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-        }
-    }
-
-    private void updateProfileImageUrl(Uri uri) {
+    private void uploadImageToFirebaseStorage(byte[] imageData) {
         if (currentUser == null) return;
-        db.collection("users").document(currentUser.getUid()).update("photoUrl", uri.toString())
-                .addOnSuccessListener(aVoid -> Toast.makeText(getContext(), "Cập nhật ảnh đại diện thành công!", Toast.LENGTH_SHORT).show())
-                .addOnFailureListener(e -> Toast.makeText(getContext(), "Lỗi khi cập nhật link ảnh.", Toast.LENGTH_SHORT).show());
+
+        final String userId = currentUser.getUid();
+        final StorageReference fileReference = storage.getReference("profile_pics").child(userId + "/" + UUID.randomUUID().toString() + ".jpg");
+
+        Toast.makeText(getContext(), "Đang cập nhật ảnh đại diện...", Toast.LENGTH_LONG).show();
+
+        UploadTask uploadTask = fileReference.putBytes(imageData);
+        uploadTask.addOnSuccessListener(taskSnapshot -> {
+            fileReference.getDownloadUrl().addOnSuccessListener(uri -> {
+                String newPhotoUrl = uri.toString();
+                updateAllUserReferences(userId, newPhotoUrl);
+            }).addOnFailureListener(e -> {
+                Toast.makeText(getContext(), "Lỗi: Không lấy được link ảnh.", Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "Failed to get download URL", e);
+            });
+        }).addOnFailureListener(e -> {
+            Toast.makeText(getContext(), "Tải ảnh lên thất bại: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Image upload failed", e);
+        });
+    }
+
+    private void updateAllUserReferences(String userId, String newPhotoUrl) {
+        if (currentUser == null) return;
+
+        // 1. Cập nhật URL ảnh trong Firebase Authentication
+        UserProfileChangeRequest profileUpdates = new UserProfileChangeRequest.Builder()
+                .setPhotoUri(Uri.parse(newPhotoUrl))
+                .build();
+
+        currentUser.updateProfile(profileUpdates)
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        Log.d(TAG, "User profile photo updated in Auth.");
+                    }
+                });
+
+        // 2. Cập nhật URL ảnh trong document của user trên Firestore
+        db.collection("users").document(userId)
+                .update("photoUrl", newPhotoUrl)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(getContext(), "Cập nhật ảnh đại diện thành công!", Toast.LENGTH_SHORT).show();
+                    Log.d(TAG, "User photo URL updated in Firestore.");
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(getContext(), "Lỗi khi cập nhật link ảnh trong hồ sơ.", Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "Failed to update photo URL in Firestore", e);
+                });
+    }
+
+    private void openHistory(String historyType) {
+        Intent intent = new Intent(getActivity(), HistoryActivity.class);
+        intent.putExtra(HistoryActivity.HISTORY_TYPE, historyType);
+        startActivity(intent);
     }
 
     private void deactivateAccount() {
@@ -227,6 +367,9 @@ public class ProfileFragment extends Fragment {
                         if (task.isSuccessful()) {
                             Toast.makeText(getContext(), "Tài khoản đã được xóa vĩnh viễn.", Toast.LENGTH_SHORT).show();
                             goToLogin();
+                        } else {
+                            Log.e(TAG, "Failed to delete user from Auth", task.getException());
+                            Toast.makeText(getContext(), "Lỗi xóa tài khoản, vui lòng đăng nhập lại và thử lại.", Toast.LENGTH_LONG).show();
                         }
                     });
                 });

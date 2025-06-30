@@ -55,8 +55,6 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
 
         if (listing.getImageUrls() != null && !listing.getImageUrls().isEmpty()) {
             String imageUrl = listing.getImageUrls().get(0);
-            Log.d(TAG, "Loading image for '" + listing.getTitle() + "' from URL: " + imageUrl);
-
             Glide.with(context)
                     .load(imageUrl)
                     .placeholder(R.color.light_gray)
@@ -64,7 +62,6 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                     .into(holder.imageViewProduct);
         } else {
-            Log.w(TAG, "No image URL for listing: " + listing.getTitle());
             holder.imageViewProduct.setImageResource(R.drawable.ic_image_placeholder);
         }
 
@@ -73,6 +70,18 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
                 listener.onItemClick(listing);
             }
         });
+
+        float distance = listing.getDistanceToUser();
+        if (distance != -1) {
+            holder.textViewDistance.setVisibility(View.VISIBLE);
+            if (distance < 1000) {
+                holder.textViewDistance.setText(String.format(Locale.US, "• %.0f m", distance));
+            } else {
+                holder.textViewDistance.setText(String.format(Locale.US, "• %.1f km", distance / 1000));
+            }
+        } else {
+            holder.textViewDistance.setVisibility(View.GONE);
+        }
     }
 
     @Override
@@ -82,7 +91,7 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
 
     public static class ListingViewHolder extends RecyclerView.ViewHolder {
         ImageView imageViewProduct;
-        TextView textViewTitle, textViewPrice, textViewLocation;
+        TextView textViewTitle, textViewPrice, textViewLocation, textViewDistance;
 
         public ListingViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -90,6 +99,7 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
             textViewTitle = itemView.findViewById(R.id.textViewTitle);
             textViewPrice = itemView.findViewById(R.id.textViewPrice);
             textViewLocation = itemView.findViewById(R.id.textViewLocation);
+            textViewDistance = itemView.findViewById(R.id.textViewDistance);
         }
     }
 }

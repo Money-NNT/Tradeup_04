@@ -20,6 +20,7 @@ import java.util.Map;
 
 public class EditProfileActivity extends AppCompatActivity {
 
+    // *** THAY ĐỔI Ở ĐÂY: Khai báo thêm editTextContactInfo ***
     private TextInputEditText editTextDisplayName, editTextBio, editTextContactInfo;
     private MaterialButton buttonSaveChanges;
     private ProgressBar progressBar;
@@ -45,6 +46,7 @@ public class EditProfileActivity extends AppCompatActivity {
         toolbar = findViewById(R.id.toolbar);
         editTextDisplayName = findViewById(R.id.editTextDisplayName);
         editTextBio = findViewById(R.id.editTextBio);
+        // *** THÊM VÀO ĐÂY: Ánh xạ editTextContactInfo ***
         editTextContactInfo = findViewById(R.id.editTextContactInfo);
         buttonSaveChanges = findViewById(R.id.buttonSaveChanges);
         progressBar = findViewById(R.id.progressBar);
@@ -55,6 +57,7 @@ public class EditProfileActivity extends AppCompatActivity {
         if (extras != null) {
             editTextDisplayName.setText(extras.getString("CURRENT_DISPLAY_NAME"));
             editTextBio.setText(extras.getString("CURRENT_BIO"));
+            // *** THÊM VÀO ĐÂY: Lấy và hiển thị contact info ***
             editTextContactInfo.setText(extras.getString("CURRENT_CONTACT_INFO"));
         }
     }
@@ -67,6 +70,7 @@ public class EditProfileActivity extends AppCompatActivity {
     private void saveProfileChanges() {
         String newDisplayName = editTextDisplayName.getText().toString().trim();
         String newBio = editTextBio.getText().toString().trim();
+        // *** THÊM VÀO ĐÂY: Lấy giá trị từ ô contact info ***
         String newContactInfo = editTextContactInfo.getText().toString().trim();
 
         if (TextUtils.isEmpty(newDisplayName)) {
@@ -84,6 +88,7 @@ public class EditProfileActivity extends AppCompatActivity {
         Map<String, Object> updates = new HashMap<>();
         updates.put("displayName", newDisplayName);
         updates.put("bio", newBio);
+        // *** THÊM VÀO ĐÂY: Thêm contact info vào map để update ***
         updates.put("contactInfo", newContactInfo);
 
         db.collection("users").document(currentUser.getUid())

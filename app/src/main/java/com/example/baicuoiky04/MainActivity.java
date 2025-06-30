@@ -31,12 +31,12 @@ import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
-
 
 public class MainActivity extends AppCompatActivity implements BottomNavigationView.OnItemSelectedListener, FilterBottomSheetFragment.FilterListener {
 
@@ -59,7 +59,6 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     private List<DataModels.Listing> listingList;
     private Location lastKnownLocation;
 
-    private String currentKeyword = "";
     private String currentSortBy = "createdAt";
     private Query.Direction currentSortDirection = Query.Direction.DESCENDING;
     private float currentMinPrice = 0;
@@ -173,11 +172,6 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         );
     }
 
-    private void openFilterDialog() {
-        // This method is now handled by the SearchActivity.
-        // If needed here, you'd call FilterBottomSheetFragment.
-    }
-
     @Override
     public void onFilterApplied(String sortBy, boolean isAscending, float minPrice, float maxPrice, String category, String condition, float distance) {
         this.currentSortBy = sortBy;
@@ -187,7 +181,6 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         this.currentCategory = category;
         this.currentCondition = "Tất cả".equalsIgnoreCase(condition) ? "" : condition;
         this.currentDistance = distance;
-
         fetchListings();
     }
 
@@ -217,7 +210,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 requestLocationAndFetchData();
             } else {
-                Toast.makeText(this, "Quyền vị trí bị từ chối. Không thể lọc theo khoảng cách.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Quyền vị trí bị từ chối. Không thể sắp xếp và lọc theo khoảng cách.", Toast.LENGTH_SHORT).show();
                 fetchListings();
             }
         }
@@ -225,30 +218,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
 
     private void fetchListings() {
         progressBar.setVisibility(View.VISIBLE);
-
         Query query = db.collection("listings").whereEqualTo("status", "available");
-
-        if (!currentCategory.equals("Tất cả")) {
-            query = query.whereEqualTo("category", currentCategory);
-        }
-        if (currentCondition != null && !currentCondition.isEmpty() && !"Tất cả".equalsIgnoreCase(currentCondition)) {
-            query = query.whereEqualTo("condition", currentCondition);
-        }
-        if (currentMinPrice > 0) {
-            query = query.whereGreaterThanOrEqualTo("price", currentMinPrice);
-        }
-        if (currentMaxPrice < 50000000) {
-            query = query.whereLessThanOrEqualTo("price", currentMaxPrice);
-        }
-
-        if (currentSortBy.equals("price")) {
-            query = query.orderBy(currentSortBy, currentSortDirection);
-        } else {
-            if (currentMinPrice > 0 || currentMaxPrice < 50000000) {
-                query = query.orderBy("price");
-            }
-            query = query.orderBy(currentSortBy, currentSortDirection);
-        }
 
         query.get().addOnCompleteListener(task -> {
             progressBar.setVisibility(View.GONE);
@@ -265,28 +235,27 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     }
 
     private void filterAndDisplayListings(List<DataModels.Listing> fetchedListings) {
-        List<DataModels.Listing> finalList;
-        if (currentDistance >= 100.0f || lastKnownLocation == null) {
-            finalList = fetchedListings;
-        } else {
-            finalList = fetchedListings.stream()
-                    .filter(listing -> {
-                        if (listing.getLocationGeoPoint() == null) return false;
-                        Location itemLocation = new Location("");
-                        itemLocation.setLatitude(listing.getLocationGeoPoint().getLatitude());
-                        itemLocation.setLongitude(listing.getLocationGeoPoint().getLongitude());
-                        float distanceInKm = lastKnownLocation.distanceTo(itemLocation) / 1000;
-                        return distanceInKm <= currentDistance;
-                    })
-                    .collect(Collectors.toList());
+        if (lastKnownLocation != null) {
+            for (DataModels.Listing listing : fetchedListings) {
+                if (listing.getLocationGeoPoint() != null) {
+                    Location itemLocation = new Location("");
+                    itemLocation.setLatitude(listing.getLocationGeoPoint().getLatitude());
+                    itemLocation.setLongitude(listing.getLocationGeoPoint().getLongitude());
+                    listing.setDistanceToUser(lastKnownLocation.distanceTo(itemLocation));
+                }
+            }
         }
+
+        List<DataModels.Listing> finalList = new ArrayList<>(fetchedListings);
+
+        finalList.sort(Comparator.comparingDouble(DataModels.Listing::getDistanceToUser));
 
         listingList.clear();
         listingList.addAll(finalList);
         listingAdapter.notifyDataSetChanged();
 
         if (listingList.isEmpty()) {
-            Toast.makeText(this, "Không tìm thấy sản phẩm nào phù hợp.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Không tìm thấy sản phẩm nào.", Toast.LENGTH_SHORT).show();
         }
     }
 

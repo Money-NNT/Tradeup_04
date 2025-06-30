@@ -19,15 +19,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp">
-
             <de.hdodenhof.circleimageview.CircleImageView
                 android:id="@+id/profileImageView"
                 android:layout_width="120dp"
                 android:layout_height="120dp"
-                android:src="@drawable/ic_profile_placeholder"
-                app:civ_border_color="#FF000000"
-                app:civ_border_width="2dp" />
-
+                android:src="@drawable/ic_profile_placeholder" />
             <com.google.android.material.floatingactionbutton.FloatingActionButton
                 android:id="@+id/fabChangeImage"
                 android:layout_width="wrap_content"
@@ -46,7 +42,6 @@
             android:textSize="22sp"
             android:textStyle="bold"
             tools:text="Nguyễn Thị Hương" />
-
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -60,7 +55,6 @@
                 android:layout_height="wrap_content"
                 android:isIndicator="true"
                 android:numStars="5"
-                android:stepSize="0.1"
                 tools:rating="4.5"/>
             <TextView
                 android:id="@+id/textViewRatingValue"
@@ -69,7 +63,6 @@
                 android:layout_marginStart="8dp"
                 tools:text="4.5"/>
         </LinearLayout>
-
         <TextView
             android:id="@+id/textViewTotalTransactions"
             android:layout_width="wrap_content"
@@ -86,7 +79,66 @@
             android:background="@drawable/bio_background"
             android:padding="16dp"
             android:textAlignment="center"
+            android:visibility="gone"
+            tools:visibility="visible"
             tools:text="Xin chào! Tôi là một người bán hàng đáng tin cậy..." />
+
+        <!-- *** THÊM VÀO ĐÂY: TextView cho Thông tin liên lạc *** -->
+        <TextView
+            android:id="@+id/textViewContactInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:drawablePadding="8dp"
+            android:gravity="center_vertical"
+            android:visibility="gone"
+            app:drawableStartCompat="@drawable/ic_contact_phone_24"
+            tools:text="Zalo: 0987654321"
+            tools:visibility="visible" />
+
+        <!-- THÊM KHỐI "HOẠT ĐỘNG CỦA TÔI" -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="24dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Hoạt động của tôi"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonPurchaseHistory"
+                style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Lịch sử mua hàng"
+                android:gravity="start|center_vertical"
+                app:icon="@drawable/ic_shopping_bag_24"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonSalesHistory"
+                style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Lịch sử bán hàng"
+                android:gravity="start|center_vertical"
+                app:icon="@drawable/ic_storefront_24"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonOfferHistory"
+                style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Lịch sử trả giá"
+                android:gravity="start|center_vertical"
+                app:icon="@drawable/ic_request_quote_24"/>
+
+        </LinearLayout>
 
         <!-- Các nút chức năng của chính chủ -->
         <LinearLayout
