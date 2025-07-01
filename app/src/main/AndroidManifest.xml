@@ -84,5 +84,10 @@
     <activity
         android:name=".MyOffersActivity"
         android:exported="false" />
+
+    <activity
+        android:name=".PreviewListingActivity"
+        android:exported="false"
+            android:theme="@style/Theme.BaiCuoiKy04.NoActionBar" />
 </application>
     </manifest>

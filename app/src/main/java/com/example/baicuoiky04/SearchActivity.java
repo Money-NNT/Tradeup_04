@@ -1,10 +1,7 @@
 package com.example.baicuoiky04;
 
-import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -16,30 +13,24 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import java.util.stream.Collectors;
-
 public class SearchActivity extends AppCompatActivity implements FilterBottomSheetFragment.FilterListener {
 
     private static final String TAG = "SearchActivity";
-    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+    private static final long DEBOUNCE_DELAY_MS = 300; // Tăng lên 300ms để trải nghiệm tốt hơn
 
     private SearchView searchView;
     private Button btnFilter;
@@ -50,10 +41,11 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
 
     private List<DataModels.Listing> resultList;
     private FirebaseFirestore db;
-    private FusedLocationProviderClient fusedLocationClient;
-    private Location lastKnownLocation;
+
+    // --- CÁC BIẾN MỚI CHO DEBOUNCING ---
     private final Handler searchHandler = new Handler(Looper.getMainLooper());
     private Runnable searchRunnable;
+    // ------------------------------------
 
     private String currentKeyword = "";
     private String currentSortBy = "createdAt";
@@ -62,7 +54,6 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
     private float currentMaxPrice = 50000000;
     private String currentCategory = "Tất cả";
     private String currentCondition = "Tất cả";
-    private float currentDistance = 100.0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,11 +61,9 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
         setContentView(R.layout.activity_search);
 
         db = FirebaseFirestore.getInstance();
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         initViews();
         setupRecyclerView();
         setupSearchView();
-        requestLocation();
     }
 
     private void initViews() {
@@ -107,11 +96,16 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
         });
     }
 
+    // --- HÀM setupSearchView ĐƯỢC CẬP NHẬT HOÀN TOÀN ---
     private void setupSearchView() {
+        searchView.setIconified(false); // Mở rộng thanh tìm kiếm ngay từ đầu
+        searchView.requestFocus(); // Tự động focus để bàn phím hiện lên
+
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
-                searchHandler.removeCallbacks(searchRunnable);
+                // Khi người dùng nhấn nút tìm kiếm trên bàn phím
+                searchHandler.removeCallbacks(searchRunnable); // Hủy bỏ các tìm kiếm đang chờ
                 performSearch(query);
                 hideKeyboard();
                 return true;
@@ -119,9 +113,14 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
 
             @Override
             public boolean onQueryTextChange(String newText) {
-                searchHandler.removeCallbacks(searchRunnable);
+                // Khi người dùng gõ từng chữ
+                searchHandler.removeCallbacks(searchRunnable); // Hủy bỏ tìm kiếm trước đó
+
+                // Tạo một tác vụ tìm kiếm mới
                 searchRunnable = () -> performSearch(newText);
-                searchHandler.postDelayed(searchRunnable, 500);
+
+                // Đặt lịch để thực hiện tác vụ này sau DEBOUNCE_DELAY_MS
+                searchHandler.postDelayed(searchRunnable, DEBOUNCE_DELAY_MS);
                 return true;
             }
         });
@@ -135,7 +134,7 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
                 currentMaxPrice,
                 currentCategory,
                 currentCondition,
-                currentDistance // Thêm tham số distance
+                100.0f // Tạm thời chưa dùng distance trong Search
         );
         filterSheet.setFilterListener(this);
         filterSheet.show(getSupportFragmentManager(), "FilterBottomSheetFragment");
@@ -149,38 +148,7 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
         this.currentMaxPrice = maxPrice;
         this.currentCategory = category;
         this.currentCondition = "Tất cả".equalsIgnoreCase(condition) ? "" : condition;
-        this.currentDistance = distance;
         performSearch(searchView.getQuery().toString());
-    }
-
-    private void requestLocation() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
-            return;
-        }
-        fusedLocationClient.getLastLocation()
-                .addOnSuccessListener(this, location -> {
-                    lastKnownLocation = location;
-                    performSearch(searchView.getQuery().toString());
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Failed to get location", e);
-                    performSearch(searchView.getQuery().toString());
-                });
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                requestLocation();
-            } else {
-                Toast.makeText(this, "Quyền vị trí bị từ chối. Không thể lọc theo khoảng cách.", Toast.LENGTH_SHORT).show();
-                performSearch(searchView.getQuery().toString());
-            }
-        }
     }
 
     private void performSearch(String keyword) {
@@ -223,30 +191,12 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
         query.get().addOnSuccessListener(queryDocumentSnapshots -> {
             progressBar.setVisibility(View.GONE);
             resultList.clear();
-            List<DataModels.Listing> fetchedListings = queryDocumentSnapshots.toObjects(DataModels.Listing.class);
-
-            List<DataModels.Listing> finalList;
-            if (currentDistance >= 100.0f || lastKnownLocation == null) {
-                finalList = fetchedListings;
-            } else {
-                finalList = fetchedListings.stream()
-                        .filter(listing -> {
-                            if (listing.getLocationGeoPoint() == null) return false;
-                            Location itemLocation = new Location("");
-                            itemLocation.setLatitude(listing.getLocationGeoPoint().getLatitude());
-                            itemLocation.setLongitude(listing.getLocationGeoPoint().getLongitude());
-                            float distanceInKm = lastKnownLocation.distanceTo(itemLocation) / 1000;
-                            return distanceInKm <= currentDistance;
-                        })
-                        .collect(Collectors.toList());
-            }
-
-            if (finalList.isEmpty()) {
+            if (queryDocumentSnapshots.isEmpty()) {
                 textViewPlaceholder.setVisibility(View.VISIBLE);
                 textViewPlaceholder.setText("Không tìm thấy kết quả nào");
             } else {
                 recyclerViewResults.setVisibility(View.VISIBLE);
-                resultList.addAll(finalList);
+                resultList.addAll(queryDocumentSnapshots.toObjects(DataModels.Listing.class));
             }
             adapter.notifyDataSetChanged();
         }).addOnFailureListener(e -> {

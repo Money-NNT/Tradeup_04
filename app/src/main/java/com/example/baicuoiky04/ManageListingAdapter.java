@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
@@ -56,7 +57,7 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
 
     class ViewHolder extends RecyclerView.ViewHolder {
         ImageView imageViewProduct;
-        TextView textViewTitle, textViewPrice, textViewStatus;
+        TextView textViewTitle, textViewPrice, textViewStatus, textViewViews, textViewOffers;
         ImageButton buttonMoreOptions;
 
         ViewHolder(@NonNull View itemView) {
@@ -66,6 +67,8 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
             textViewPrice = itemView.findViewById(R.id.textViewPriceManage);
             textViewStatus = itemView.findViewById(R.id.textViewStatusManage);
             buttonMoreOptions = itemView.findViewById(R.id.buttonMoreOptions);
+            textViewViews = itemView.findViewById(R.id.textViewViews);
+            textViewOffers = itemView.findViewById(R.id.textViewOffers);
         }
 
         void bind(DataModels.Listing listing, OnActionListener listener) {
@@ -87,8 +90,13 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
                 textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.status_paused)));
             }
 
+            textViewViews.setText(String.valueOf(listing.getViews()));
+            textViewOffers.setText(String.valueOf(listing.getOffersCount()));
+
             if (listing.getImageUrls() != null && !listing.getImageUrls().isEmpty()) {
                 Glide.with(context).load(listing.getImageUrls().get(0)).into(imageViewProduct);
+            } else {
+                imageViewProduct.setImageResource(R.drawable.ic_image_placeholder);
             }
 
             buttonMoreOptions.setOnClickListener(v -> showPopupMenu(v, listing, listener));

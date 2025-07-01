@@ -1,6 +1,7 @@
 package com.example.baicuoiky04;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
@@ -58,6 +59,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
 public class AddListingActivity extends AppCompatActivity implements ImagePreviewAdapter.OnImageRemoveListener {
@@ -92,6 +94,18 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
                     Toast.makeText(this, "Bạn cần cấp quyền vị trí để sử dụng tính năng này.", Toast.LENGTH_SHORT).show();
                 }
             });
+
+    private final ActivityResultLauncher<Intent> previewLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    setLoading(true);
+                    uploadImagesToCloudinary();
+                } else {
+                    setLoading(false);
+                }
+            }
+    );
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -161,7 +175,6 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
     private void prepareEditMode() {
         textViewScreenTitle.setText("Chỉnh sửa tin đăng");
         btnSubmitListing.setText("Lưu thay đổi");
-
         db.collection("listings").document(listingIdToEdit).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
@@ -177,10 +190,8 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
         editTextPrice.setText(String.valueOf(listing.getPrice()));
         editTextLocation.setText(listing.getLocationName());
         currentLocationGeoPoint = listing.getLocationGeoPoint();
-
         ArrayAdapter<CharSequence> categoryAdapter = (ArrayAdapter<CharSequence>) spinnerCategory.getAdapter();
         spinnerCategory.setSelection(categoryAdapter.getPosition(listing.getCategory()));
-
         ArrayAdapter<CharSequence> conditionAdapter = (ArrayAdapter<CharSequence>) spinnerCondition.getAdapter();
         spinnerCondition.setSelection(conditionAdapter.getPosition(listing.getCondition()));
     }
@@ -281,18 +292,38 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
     }
 
     private void handleSubmit() {
-        if (!validateInput()) return;
-        setLoading(true);
+        if (!validateInput()) {
+            return;
+        }
+
         if (isEditMode) {
             updateListing();
-        } else {
-            if (newImageUris.isEmpty()) {
-                Toast.makeText(this, "Vui lòng chọn ít nhất một ảnh", Toast.LENGTH_SHORT).show();
-                setLoading(false);
-                return;
-            }
-            uploadImagesToCloudinary();
+            return;
         }
+
+        if (newImageUris.isEmpty()) {
+            Toast.makeText(this, "Vui lòng chọn ít nhất một ảnh.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Bundle previewData = new Bundle();
+        previewData.putString("title", editTextTitle.getText().toString());
+        previewData.putString("description", editTextDescription.getText().toString());
+        previewData.putLong("price", Long.parseLong(editTextPrice.getText().toString()));
+        previewData.putString("location", editTextLocation.getText().toString());
+        previewData.putParcelableArrayList("imageUris", newImageUris);
+
+        Intent intent = new Intent(this, PreviewListingActivity.class);
+        intent.putExtra(PreviewListingActivity.EXTRA_PREVIEW_DATA, previewData);
+        previewLauncher.launch(intent);
+    }
+
+    private boolean validateInput() {
+        if (TextUtils.isEmpty(editTextTitle.getText())) { editTextTitle.setError("Tiêu đề không được để trống"); return false; }
+        if (TextUtils.isEmpty(editTextDescription.getText())) { editTextDescription.setError("Mô tả không được để trống"); return false; }
+        if (TextUtils.isEmpty(editTextPrice.getText())) { editTextPrice.setError("Giá không được để trống"); return false; }
+        if (TextUtils.isEmpty(editTextLocation.getText())) { editTextLocation.setError("Địa điểm không được để trống"); return false; }
+        return true;
     }
 
     private void uploadImagesToCloudinary() {
@@ -308,14 +339,12 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
                 }
                 @Override
                 public void onError(String requestId, ErrorInfo error) {
+                    Log.e(TAG, "Cloudinary upload error: " + error.getDescription());
                     latch.countDown();
                 }
-                @Override
-                public void onStart(String requestId) {}
-                @Override
-                public void onProgress(String requestId, long bytes, long totalBytes) {}
-                @Override
-                public void onReschedule(String requestId, ErrorInfo error) {}
+                @Override public void onStart(String requestId) {}
+                @Override public void onProgress(String requestId, long bytes, long totalBytes) {}
+                @Override public void onReschedule(String requestId, ErrorInfo error) {}
             }).dispatch();
         }
 
@@ -332,39 +361,9 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
                 });
             } catch (InterruptedException e) {
                 e.printStackTrace();
+                runOnUiThread(() -> setLoading(false));
             }
         }).start();
-    }
-
-    private boolean validateInput() {
-        if (TextUtils.isEmpty(editTextTitle.getText())) { editTextTitle.setError("Tiêu đề không được để trống"); return false; }
-        if (TextUtils.isEmpty(editTextDescription.getText())) { editTextDescription.setError("Mô tả không được để trống"); return false; }
-        if (TextUtils.isEmpty(editTextPrice.getText())) { editTextPrice.setError("Giá không được để trống"); return false; }
-        if (TextUtils.isEmpty(editTextLocation.getText())) { editTextLocation.setError("Địa điểm không được để trống"); return false; }
-        return true;
-    }
-
-    private void updateListing() {
-        // Tạm thời chưa xử lý upload ảnh khi sửa
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("title", editTextTitle.getText().toString().trim());
-        updates.put("description", editTextDescription.getText().toString().trim());
-        updates.put("price", Long.parseLong(editTextPrice.getText().toString()));
-        updates.put("category", spinnerCategory.getSelectedItem().toString());
-        updates.put("condition", spinnerCondition.getSelectedItem().toString());
-        updates.put("locationName", editTextLocation.getText().toString().trim());
-        if (currentLocationGeoPoint != null) {
-            updates.put("locationGeoPoint", currentLocationGeoPoint);
-        }
-        updates.put("lastUpdatedAt", FieldValue.serverTimestamp());
-        db.collection("listings").document(listingIdToEdit).update(updates)
-                .addOnSuccessListener(aVoid -> {
-                    setLoading(false);
-                    finish();
-                })
-                .addOnFailureListener(e -> {
-                    setLoading(false);
-                });
     }
 
     private void saveListingToFirestore(List<String> imageUrls) {
@@ -403,6 +402,31 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Lỗi khi lưu tin: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    setLoading(false);
+                });
+    }
+
+    private void updateListing() {
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("title", editTextTitle.getText().toString().trim());
+        updates.put("description", editTextDescription.getText().toString().trim());
+        updates.put("price", Long.parseLong(editTextPrice.getText().toString()));
+        updates.put("category", spinnerCategory.getSelectedItem().toString());
+        updates.put("condition", spinnerCondition.getSelectedItem().toString());
+        updates.put("locationName", editTextLocation.getText().toString().trim());
+        if (currentLocationGeoPoint != null) {
+            updates.put("locationGeoPoint", currentLocationGeoPoint);
+        }
+        updates.put("lastUpdatedAt", FieldValue.serverTimestamp());
+
+        db.collection("listings").document(listingIdToEdit).update(updates)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Cập nhật thành công!", Toast.LENGTH_SHORT).show();
+                    setLoading(false);
+                    finish();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     setLoading(false);
                 });
     }

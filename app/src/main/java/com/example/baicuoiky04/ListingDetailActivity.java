@@ -6,11 +6,13 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.viewpager2.widget.ViewPager2;
@@ -19,6 +21,7 @@ import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
@@ -39,7 +42,7 @@ public class ListingDetailActivity extends AppCompatActivity {
     private CircleImageView imageViewSeller;
     private MaterialButton btnSaveListing, btnMakeOffer;
     private ImageSliderAdapter imageSliderAdapter;
-    private View sellerInfoLayout; // Thêm biến cho layout người bán
+    private View sellerInfoLayout;
 
     private FirebaseFirestore db;
     private ListenerRegistration listingListener;
@@ -63,20 +66,22 @@ public class ListingDetailActivity extends AppCompatActivity {
             return;
         }
 
-        // Đặt tiêu đề và nút back cho Action Bar
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle("Chi tiết sản phẩm");
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
 
         initViews();
+        incrementViewCount();
     }
 
     @Override
-    public boolean onSupportNavigateUp() {
-        // Xử lý khi người dùng nhấn nút back trên Action Bar
-        onBackPressed();
-        return true;
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void initViews() {
@@ -89,12 +94,11 @@ public class ListingDetailActivity extends AppCompatActivity {
         imageViewSeller = findViewById(R.id.imageViewSeller);
         btnSaveListing = findViewById(R.id.btnSaveListing);
         btnMakeOffer = findViewById(R.id.btnMakeOffer);
-        sellerInfoLayout = findViewById(R.id.sellerInfoLayout); // Ánh xạ layout
+        sellerInfoLayout = findViewById(R.id.sellerInfoLayout);
 
         btnSaveListing.setOnClickListener(v -> toggleSaveListing());
         btnMakeOffer.setOnClickListener(v -> showMakeOfferDialog());
 
-        // Gắn sự kiện click để xem trang cá nhân người bán
         sellerInfoLayout.setOnClickListener(v -> {
             if (currentListing != null && currentListing.getSellerId() != null) {
                 Intent intent = new Intent(this, ProfileViewActivity.class);
@@ -102,6 +106,15 @@ public class ListingDetailActivity extends AppCompatActivity {
                 startActivity(intent);
             }
         });
+    }
+
+    private void incrementViewCount() {
+        if (listingId != null) {
+            DocumentReference listingRef = db.collection("listings").document(listingId);
+            listingRef.update("views", FieldValue.increment(1))
+                    .addOnSuccessListener(aVoid -> Log.d(TAG, "View count incremented successfully."))
+                    .addOnFailureListener(e -> Log.w(TAG, "Error incrementing view count", e));
+        }
     }
 
     @Override
@@ -167,7 +180,7 @@ public class ListingDetailActivity extends AppCompatActivity {
             btnMakeOffer.setEnabled(false);
             btnMakeOffer.setText("Đây là tin đăng của bạn");
             btnSaveListing.setVisibility(View.GONE);
-            sellerInfoLayout.setClickable(false); // Không cho nhấn vào profile của chính mình
+            sellerInfoLayout.setClickable(false);
         } else {
             btnMakeOffer.setEnabled(true);
             btnMakeOffer.setText("Liên hệ người bán / Trả giá");
@@ -218,11 +231,15 @@ public class ListingDetailActivity extends AppCompatActivity {
         newOffer.setOfferPrice(offerPrice);
         newOffer.setStatus("pending");
 
-        db.collection("listings").document(listingId).collection("offers")
+        DocumentReference listingRef = db.collection("listings").document(listingId);
+
+        listingRef.collection("offers")
                 .add(newOffer)
                 .addOnSuccessListener(documentReference -> {
                     Toast.makeText(this, "Gửi trả giá thành công!", Toast.LENGTH_SHORT).show();
-                    db.collection("listings").document(listingId).update("offersCount", FieldValue.increment(1));
+                    listingRef.update("offersCount", FieldValue.increment(1))
+                            .addOnSuccessListener(aVoid -> Log.d(TAG, "Offers count incremented."))
+                            .addOnFailureListener(e -> Log.w(TAG, "Error incrementing offers count", e));
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -235,11 +252,13 @@ public class ListingDetailActivity extends AppCompatActivity {
             return;
         }
         String userId = currentUser.getUid();
+        DocumentReference userRef = db.collection("users").document(userId);
+
         if (isSaved) {
-            db.collection("users").document(userId).update("savedListings", FieldValue.arrayRemove(listingId))
+            userRef.update("savedListings", FieldValue.arrayRemove(listingId))
                     .addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã bỏ lưu", Toast.LENGTH_SHORT).show());
         } else {
-            db.collection("users").document(userId).update("savedListings", FieldValue.arrayUnion(listingId))
+            userRef.update("savedListings", FieldValue.arrayUnion(listingId))
                     .addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã lưu tin", Toast.LENGTH_SHORT).show());
         }
     }
