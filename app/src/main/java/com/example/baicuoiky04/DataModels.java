@@ -177,16 +177,46 @@ public final class DataModels {
         public Date getCreatedAt() { return createdAt; }
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
     }
+
+    public static class HomeFeedItem {
+        public static final int TYPE_HEADER = 0;
+        public static final int TYPE_HORIZONTAL_LIST = 1;
+        public static final int TYPE_GRID_LISTING = 2;
+
+        public int type;
+        public String headerTitle;
+        public List<Listing> listings;
+        public Listing singleListing;
+
+        public HomeFeedItem(int type, String headerTitle) {
+            this.type = type;
+            this.headerTitle = headerTitle;
+        }
+
+        public HomeFeedItem(int type, List<Listing> listings) {
+            this.type = type;
+            this.listings = listings;
+        }
+
+        public HomeFeedItem(int type, Listing listing) {
+            this.type = type;
+            this.singleListing = listing;
+        }
+    }
+
     public static class OfferWithListing {
         private Offer offer;
         private Listing listing;
+        private String offerId;
 
-        public OfferWithListing(Offer offer, Listing listing) {
+        public OfferWithListing(Offer offer, Listing listing, String offerId) {
             this.offer = offer;
             this.listing = listing;
+            this.offerId = offerId;
         }
 
         public Offer getOffer() { return offer; }
         public Listing getListing() { return listing; }
+        public String getOfferId() { return offerId; }
     }
 }

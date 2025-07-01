@@ -1,11 +1,7 @@
 package com.example.baicuoiky04;
 
-import android.Manifest;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.location.Location;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -15,57 +11,45 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
-
-public class MainActivity extends AppCompatActivity implements BottomNavigationView.OnItemSelectedListener, FilterBottomSheetFragment.FilterListener {
-
-    private static final String TAG = "MainActivity";
-    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
+public class MainActivity extends AppCompatActivity implements BottomNavigationView.OnItemSelectedListener {
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
-    private FusedLocationProviderClient fusedLocationClient;
 
-    private RecyclerView recyclerViewListings;
+    private RecyclerView recyclerViewHome;
     private FrameLayout fragmentContainer;
     private AppBarLayout appBarLayout;
-    private ListingAdapter listingAdapter;
+    private HomeFeedAdapter homeFeedAdapter;
     private ProgressBar progressBar;
     private TextView fakeSearchView;
     private BottomNavigationView bottomNavigationView;
     private FloatingActionButton fabAddItem;
 
-    private List<DataModels.Listing> listingList;
-    private Location lastKnownLocation;
-
-    private String currentSortBy = "createdAt";
-    private Query.Direction currentSortDirection = Query.Direction.DESCENDING;
-    private float currentMinPrice = 0;
-    private float currentMaxPrice = 50000000;
-    private String currentCategory = "Tất cả";
-    private String currentCondition = "Tất cả";
-    private float currentDistance = 100.0f;
+    private List<DataModels.HomeFeedItem> homeFeedItems;
+    private DocumentSnapshot lastVisible;
+    private boolean isLoading = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,23 +58,15 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
 
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
         checkUserStatus();
         initViews();
-        initRecyclerView();
+        initHomeFeedRecyclerView();
         setupListeners();
 
         if (savedInstanceState == null) {
-            showHomeContent();
             bottomNavigationView.setSelectedItemId(R.id.nav_home);
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        requestLocationAndFetchData();
     }
 
     private void checkUserStatus() {
@@ -101,7 +77,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     }
 
     private void initViews() {
-        recyclerViewListings = findViewById(R.id.recyclerViewListings);
+        recyclerViewHome = findViewById(R.id.recyclerViewHome);
         fragmentContainer = findViewById(R.id.fragment_container);
         appBarLayout = findViewById(R.id.appBarLayout);
         progressBar = findViewById(R.id.progressBar);
@@ -110,11 +86,36 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         fabAddItem = findViewById(R.id.fabAddItem);
     }
 
-    private void initRecyclerView() {
-        listingList = new ArrayList<>();
-        listingAdapter = new ListingAdapter(this, listingList);
-        recyclerViewListings.setLayoutManager(new GridLayoutManager(this, 2));
-        recyclerViewListings.setAdapter(listingAdapter);
+    private void initHomeFeedRecyclerView() {
+        homeFeedItems = new ArrayList<>();
+        homeFeedAdapter = new HomeFeedAdapter(this, homeFeedItems);
+
+        GridLayoutManager layoutManager = new GridLayoutManager(this, 2);
+        layoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
+            @Override
+            public int getSpanSize(int position) {
+                if (position < homeFeedItems.size()) {
+                    int type = homeFeedAdapter.getItemViewType(position);
+                    if (type == DataModels.HomeFeedItem.TYPE_HEADER || type == DataModels.HomeFeedItem.TYPE_HORIZONTAL_LIST) {
+                        return 2;
+                    }
+                }
+                return 1;
+            }
+        });
+        recyclerViewHome.setLayoutManager(layoutManager);
+        recyclerViewHome.setAdapter(homeFeedAdapter);
+
+        recyclerViewHome.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                LinearLayoutManager linearLayoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
+                if (!isLoading && linearLayoutManager != null && linearLayoutManager.findLastCompletelyVisibleItemPosition() == homeFeedItems.size() - 1) {
+                    loadMoreAllProducts();
+                }
+            }
+        });
     }
 
     private void setupListeners() {
@@ -122,19 +123,12 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         fabAddItem.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, AddListingActivity.class)));
         bottomNavigationView.setOnItemSelectedListener(this);
         bottomNavigationView.setBackground(null);
-
-        listingAdapter.setOnItemClickListener(listing -> {
-            Intent intent = new Intent(MainActivity.this, ListingDetailActivity.class);
-            intent.putExtra("LISTING_ID", listing.getListingId());
-            startActivity(intent);
-        });
     }
 
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         int itemId = item.getItemId();
         Fragment selectedFragment = null;
-
         if (itemId == R.id.nav_home) {
             showHomeContent();
             return true;
@@ -145,7 +139,6 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         } else if (itemId == R.id.nav_profile) {
             selectedFragment = new ProfileFragment();
         }
-
         if (selectedFragment != null) {
             loadFragment(selectedFragment);
         }
@@ -153,110 +146,79 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     }
 
     private void loadFragment(Fragment fragment) {
-        recyclerViewListings.setVisibility(View.GONE);
         appBarLayout.setVisibility(View.GONE);
+        recyclerViewHome.setVisibility(View.GONE);
         fragmentContainer.setVisibility(View.VISIBLE);
-
-        getSupportFragmentManager().beginTransaction()
-                .replace(R.id.fragment_container, fragment)
-                .commit();
+        getSupportFragmentManager().beginTransaction().replace(R.id.fragment_container, fragment).commit();
     }
 
     private void showHomeContent() {
         fragmentContainer.setVisibility(View.GONE);
         appBarLayout.setVisibility(View.VISIBLE);
-        recyclerViewListings.setVisibility(View.VISIBLE);
-
+        recyclerViewHome.setVisibility(View.VISIBLE);
+        buildHomeFeed();
         getSupportFragmentManager().getFragments().forEach(fragment ->
                 getSupportFragmentManager().beginTransaction().remove(fragment).commit()
         );
     }
 
-    @Override
-    public void onFilterApplied(String sortBy, boolean isAscending, float minPrice, float maxPrice, String category, String condition, float distance) {
-        this.currentSortBy = sortBy;
-        this.currentSortDirection = isAscending ? Query.Direction.ASCENDING : Query.Direction.DESCENDING;
-        this.currentMinPrice = minPrice;
-        this.currentMaxPrice = maxPrice;
-        this.currentCategory = category;
-        this.currentCondition = "Tất cả".equalsIgnoreCase(condition) ? "" : condition;
-        this.currentDistance = distance;
-        fetchListings();
-    }
-
-    private void requestLocationAndFetchData() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
-            return;
-        }
-        fusedLocationClient.getLastLocation()
-                .addOnSuccessListener(this, location -> {
-                    lastKnownLocation = location;
-                    if (recyclerViewListings.getVisibility() == View.VISIBLE) {
-                        fetchListings();
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    if (recyclerViewListings.getVisibility() == View.VISIBLE) {
-                        fetchListings();
-                    }
-                });
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                requestLocationAndFetchData();
-            } else {
-                Toast.makeText(this, "Quyền vị trí bị từ chối. Không thể sắp xếp và lọc theo khoảng cách.", Toast.LENGTH_SHORT).show();
-                fetchListings();
-            }
-        }
-    }
-
-    private void fetchListings() {
+    private void buildHomeFeed() {
+        isLoading = true;
         progressBar.setVisibility(View.VISIBLE);
-        Query query = db.collection("listings").whereEqualTo("status", "available");
 
-        query.get().addOnCompleteListener(task -> {
-            progressBar.setVisibility(View.GONE);
-            if (task.isSuccessful()) {
-                List<DataModels.Listing> fetchedListings = new ArrayList<>();
-                for (QueryDocumentSnapshot document : task.getResult()) {
-                    fetchedListings.add(document.toObject(DataModels.Listing.class));
-                }
-                filterAndDisplayListings(fetchedListings);
-            } else {
-                Toast.makeText(MainActivity.this, "Lỗi tải dữ liệu.", Toast.LENGTH_SHORT).show();
+        Task<QuerySnapshot> popularTask = db.collection("listings")
+                .whereEqualTo("status", "available")
+                .orderBy("views", Query.Direction.DESCENDING)
+                .limit(10).get();
+
+        Task<List<QuerySnapshot>> allTasks = Tasks.whenAllSuccess(popularTask);
+
+        allTasks.addOnSuccessListener(results -> {
+            homeFeedItems.clear();
+            QuerySnapshot popularResult = results.get(0);
+
+            if (!popularResult.isEmpty()) {
+                homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HEADER, "Phổ biến nhất"));
+                homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HORIZONTAL_LIST, popularResult.toObjects(DataModels.Listing.class)));
             }
+
+            homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HEADER, "Dành cho bạn"));
+
+            homeFeedAdapter.notifyDataSetChanged();
+            progressBar.setVisibility(View.GONE);
+
+            lastVisible = null;
+            loadMoreAllProducts();
+
+        }).addOnFailureListener(e -> {
+            progressBar.setVisibility(View.GONE);
+            isLoading = false;
         });
     }
 
-    private void filterAndDisplayListings(List<DataModels.Listing> fetchedListings) {
-        if (lastKnownLocation != null) {
-            for (DataModels.Listing listing : fetchedListings) {
-                if (listing.getLocationGeoPoint() != null) {
-                    Location itemLocation = new Location("");
-                    itemLocation.setLatitude(listing.getLocationGeoPoint().getLatitude());
-                    itemLocation.setLongitude(listing.getLocationGeoPoint().getLongitude());
-                    listing.setDistanceToUser(lastKnownLocation.distanceTo(itemLocation));
+    private void loadMoreAllProducts() {
+        isLoading = true;
+
+        Query allProductsQuery = db.collection("listings")
+                .whereEqualTo("status", "available")
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .limit(10);
+
+        if (lastVisible != null) {
+            allProductsQuery = allProductsQuery.startAfter(lastVisible);
+        }
+
+        allProductsQuery.get().addOnSuccessListener(snapshots -> {
+            if (!snapshots.isEmpty()) {
+                lastVisible = snapshots.getDocuments().get(snapshots.size() - 1);
+                for (QueryDocumentSnapshot doc : snapshots) {
+                    DataModels.Listing listing = doc.toObject(DataModels.Listing.class);
+                    homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_GRID_LISTING, listing));
                 }
+                homeFeedAdapter.notifyDataSetChanged();
             }
-        }
-
-        List<DataModels.Listing> finalList = new ArrayList<>(fetchedListings);
-
-        finalList.sort(Comparator.comparingDouble(DataModels.Listing::getDistanceToUser));
-
-        listingList.clear();
-        listingList.addAll(finalList);
-        listingAdapter.notifyDataSetChanged();
-
-        if (listingList.isEmpty()) {
-            Toast.makeText(this, "Không tìm thấy sản phẩm nào.", Toast.LENGTH_SHORT).show();
-        }
+            isLoading = false;
+        }).addOnFailureListener(e -> isLoading = false);
     }
 
     private void goToLoginActivity() {

@@ -15,8 +15,9 @@
         <ImageView
             android:id="@+id/imageViewProduct"
             android:layout_width="0dp"
-            android:layout_height="150dp"
+            android:layout_height="0dp"
             android:scaleType="centerCrop"
+            app:layout_constraintDimensionRatio="1:1"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
@@ -86,6 +87,8 @@
                     android:layout_height="wrap_content"
                     android:textSize="12sp"
                     android:layout_marginStart="4dp"
+                    android:visibility="gone"
+                    tools:visibility="visible"
                     tools:text="• 2.5 km" />
             </LinearLayout>
 

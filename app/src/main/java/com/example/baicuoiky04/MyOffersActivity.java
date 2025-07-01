@@ -73,7 +73,6 @@ public class MyOffersActivity extends AppCompatActivity {
         if (currentUser == null) return;
         progressBar.setVisibility(View.VISIBLE);
 
-        // Dùng Collection Group Query để lấy tất cả sub-collection "offers"
         db.collectionGroup("offers")
                 .whereEqualTo("buyerId", currentUser.getUid())
                 .get()
@@ -86,14 +85,12 @@ public class MyOffersActivity extends AppCompatActivity {
 
                     List<Task<DocumentSnapshot>> listingTasks = new ArrayList<>();
                     for (DocumentSnapshot offerDoc : offerSnapshots) {
-                        // Từ offer, lấy document listing cha của nó
                         DocumentReference parentListingRef = offerDoc.getReference().getParent().getParent();
                         if (parentListingRef != null) {
                             listingTasks.add(parentListingRef.get());
                         }
                     }
 
-                    // Chờ tất cả các tác vụ lấy listing cha hoàn tất
                     Tasks.whenAllSuccess(listingTasks).addOnSuccessListener(listingDocs -> {
                         offerList.clear();
                         for (int i = 0; i < listingDocs.size(); i++) {
@@ -104,7 +101,7 @@ public class MyOffersActivity extends AppCompatActivity {
                             DataModels.Offer offer = offerDoc.toObject(DataModels.Offer.class);
 
                             if (listing != null && offer != null) {
-                                offerList.add(new DataModels.OfferWithListing(offer, listing));
+                                offerList.add(new DataModels.OfferWithListing(offer, listing, offerDoc.getId()));
                             }
                         }
                         adapter.notifyDataSetChanged();

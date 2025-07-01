@@ -21,7 +21,7 @@ import com.google.android.material.slider.Slider;
 import java.util.List;
 import java.util.Locale;
 
-public class FilterBottomSheetFragment extends BottomSheetDialogFragment {
+public class  FilterBottomSheetFragment extends BottomSheetDialogFragment {
 
     public interface FilterListener {
         void onFilterApplied(String sortBy, boolean isAscending, float minPrice, float maxPrice, String category, String condition, float distance);

@@ -1,7 +1,6 @@
 package com.example.baicuoiky04;
 
 import android.content.Context;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,7 +23,6 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
     private Context context;
     private List<DataModels.Listing> listingList;
     private OnItemClickListener listener;
-    private static final String TAG = "ListingAdapter";
 
     public ListingAdapter(Context context, List<DataModels.Listing> listingList) {
         this.context = context;
