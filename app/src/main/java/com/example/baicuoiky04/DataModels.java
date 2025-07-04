@@ -52,7 +52,31 @@ public final class DataModels {
         public Date getCreatedAt() { return createdAt; }
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
     }
+    public static class Report {
+        private String reporterId;
+        private String reportedUserId;
+        private String reportedListingId;
+        private String reason;
+        private String comment;
+        @ServerTimestamp
+        private Date createdAt;
 
+        public Report() {}
+
+        // Dùng IDE để tự sinh Getters và Setters (Alt + Insert)
+        public String getReporterId() { return reporterId; }
+        public void setReporterId(String reporterId) { this.reporterId = reporterId; }
+        public String getReportedUserId() { return reportedUserId; }
+        public void setReportedUserId(String reportedUserId) { this.reportedUserId = reportedUserId; }
+        public String getReportedListingId() { return reportedListingId; }
+        public void setReportedListingId(String reportedListingId) { this.reportedListingId = reportedListingId; }
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
+        public String getComment() { return comment; }
+        public void setComment(String comment) { this.comment = comment; }
+        public Date getCreatedAt() { return createdAt; }
+        public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+    }
     public static class Listing {
         private String listingId;
         private String sellerId;

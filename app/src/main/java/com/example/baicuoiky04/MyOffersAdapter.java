@@ -17,12 +17,22 @@ import java.util.Locale;
 
 public class MyOffersAdapter extends RecyclerView.Adapter<MyOffersAdapter.ViewHolder> {
 
+    public interface OnActionListener {
+        void onPayClicked(DataModels.OfferWithListing item);
+        void onMakeAnotherOfferClicked(DataModels.OfferWithListing item);
+    }
+
     private List<DataModels.OfferWithListing> offerWithListingList;
     private Context context;
+    private OnActionListener listener; // Thêm biến listener
 
     public MyOffersAdapter(Context context, List<DataModels.OfferWithListing> list) {
         this.context = context;
         this.offerWithListingList = list;
+    }
+
+    public void setOnActionListener(OnActionListener listener) {
+        this.listener = listener;
     }
 
     @NonNull
@@ -89,6 +99,18 @@ public class MyOffersAdapter extends RecyclerView.Adapter<MyOffersAdapter.ViewHo
                     layoutActions.setVisibility(View.GONE);
                     break;
             }
+
+            btnPay.setOnClickListener(v -> {
+                if (listener != null) {
+                    listener.onPayClicked(item);
+                }
+            });
+
+            btnMakeAnotherOffer.setOnClickListener(v -> {
+                if (listener != null) {
+                    listener.onMakeAnotherOfferClicked(item);
+                }
+            });
         }
     }
 }

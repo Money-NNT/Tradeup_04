@@ -9,4 +9,8 @@
     <item
         android:id="@+id/action_change_status"
         android:title="Đổi trạng thái"/>
+    <!-- ID này sẽ được sử dụng cho cả "Lưu trữ" và "Khôi phục" -->
+    <item
+        android:id="@+id/action_archive"
+        android:title="Lưu trữ " />
 </menu>

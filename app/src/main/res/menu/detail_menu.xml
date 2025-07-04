@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_report_listing"
+        android:title="Báo cáo tin đăng này"
+        android:icon="@drawable/ic_report_24"
+        app:showAsAction="never"/>
+</menu>

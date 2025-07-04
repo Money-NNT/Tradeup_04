@@ -88,6 +88,10 @@
     <activity
         android:name=".PreviewListingActivity"
         android:exported="false"
-            android:theme="@style/Theme.BaiCuoiKy04.NoActionBar" />
+        android:theme="@style/Theme.BaiCuoiKy04.NoActionBar" />
+    <activity
+        android:name=".ArchivedListingsActivity"
+        android:exported="false"
+        android:parentActivityName=".MainActivity" />
 </application>
     </manifest>

@@ -1,3 +1,4 @@
+// Dán toàn bộ code này để thay thế file ListingDetailActivity.java cũ
 package com.example.baicuoiky04;
 
 import android.content.Intent;
@@ -6,9 +7,12 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -19,6 +23,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
@@ -76,9 +81,23 @@ public class ListingDetailActivity extends AppCompatActivity {
     }
 
     @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Chỉ hiển thị menu Báo cáo nếu người xem không phải là chủ tin đăng
+        if (currentUser != null && currentListing != null && !currentUser.getUid().equals(currentListing.getSellerId())) {
+            MenuInflater inflater = getMenuInflater();
+            inflater.inflate(R.menu.detail_menu, menu);
+        }
+        return true;
+    }
+
+    @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
+        int itemId = item.getItemId();
+        if (itemId == android.R.id.home) {
             finish();
+            return true;
+        } else if (itemId == R.id.action_report_listing) {
+            showReportDialog();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -143,6 +162,9 @@ public class ListingDetailActivity extends AppCompatActivity {
                         currentListing = snapshot.toObject(DataModels.Listing.class);
                         if (currentListing != null) {
                             updateUI(currentListing);
+                            // ================== DÒNG QUAN TRỌNG NHẤT BỊ THIẾU ==================
+                            invalidateOptionsMenu(); // Báo cho Android vẽ lại menu
+                            // ====================================================================
                         }
                     } else {
                         Toast.makeText(this, "Sản phẩm không còn tồn tại.", Toast.LENGTH_SHORT).show();
@@ -158,24 +180,20 @@ public class ListingDetailActivity extends AppCompatActivity {
             imageSliderAdapter = new ImageSliderAdapter(this, listing.getImageUrls());
             viewPagerImageSlider.setAdapter(imageSliderAdapter);
         }
-
         textViewTitleDetail.setText(listing.getTitle());
         NumberFormat formatter = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
         textViewPriceDetail.setText(formatter.format(listing.getPrice()));
         textViewDescriptionDetail.setText(listing.getDescription());
-
         if (listing.getCreatedAt() != null && listing.getLocationName() != null) {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm, dd/MM/yyyy", Locale.getDefault());
             String formattedDate = sdf.format(listing.getCreatedAt());
             String timestampText = "Đăng lúc " + formattedDate + " tại " + listing.getLocationName();
             textViewTimestamp.setText(timestampText);
         }
-
         textViewSellerName.setText(listing.getSellerName());
         if (listing.getSellerPhotoUrl() != null && !listing.getSellerPhotoUrl().isEmpty()) {
             Glide.with(this).load(listing.getSellerPhotoUrl()).placeholder(R.drawable.ic_profile_placeholder).into(imageViewSeller);
         }
-
         if (currentUser != null && currentUser.getUid().equals(listing.getSellerId())) {
             btnMakeOffer.setEnabled(false);
             btnMakeOffer.setText("Đây là tin đăng của bạn");
@@ -187,94 +205,120 @@ public class ListingDetailActivity extends AppCompatActivity {
             btnSaveListing.setVisibility(View.VISIBLE);
             sellerInfoLayout.setClickable(true);
         }
-
         checkIsSaved();
     }
 
-    private void showMakeOfferDialog() {
+    private void showReportDialog() {
         if (currentUser == null) {
-            Toast.makeText(this, "Vui lòng đăng nhập để trả giá", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Bạn cần đăng nhập để thực hiện chức năng này", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (currentListing == null) return;
 
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = this.getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_report, null);
+        builder.setView(dialogView);
+
+        final RadioGroup radioGroup = dialogView.findViewById(R.id.radioGroupReasons);
+        final TextInputLayout commentLayout = dialogView.findViewById(R.id.textInputLayoutComment);
+        final EditText commentEditText = dialogView.findViewById(R.id.editTextComment);
+
+        radioGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            if (checkedId == R.id.radioOther) {
+                commentLayout.setVisibility(View.VISIBLE);
+            } else {
+                commentLayout.setVisibility(View.GONE);
+            }
+        });
+
+        builder.setPositiveButton("Gửi báo cáo", (dialog, which) -> {
+            int selectedId = radioGroup.getCheckedRadioButtonId();
+            if (selectedId == -1) {
+                Toast.makeText(this, "Vui lòng chọn lý do báo cáo", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String reason = "";
+            if (selectedId == R.id.radioScam) reason = "Lừa đảo";
+            else if (selectedId == R.id.radioInappropriate) reason = "Nội dung không phù hợp";
+            else if (selectedId == R.id.radioSpam) reason = "Spam";
+            else if (selectedId == R.id.radioOther) reason = "Khác";
+
+            String comment = commentEditText.getText().toString().trim();
+            submitReport(reason, comment);
+        });
+        builder.setNegativeButton("Hủy", (dialog, which) -> dialog.dismiss());
+        builder.create().show();
+    }
+
+    private void submitReport(String reason, String comment) {
+        DataModels.Report report = new DataModels.Report();
+        report.setReporterId(currentUser.getUid());
+        report.setReportedListingId(listingId);
+        report.setReportedUserId(currentListing.getSellerId());
+        report.setReason(reason);
+        report.setComment(comment);
+
+        db.collection("reports").add(report)
+                .addOnSuccessListener(documentReference -> Toast.makeText(this, "Cảm ơn bạn đã gửi báo cáo. Chúng tôi sẽ xem xét.", Toast.LENGTH_LONG).show())
+                .addOnFailureListener(e -> Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
+    // Các hàm còn lại giữ nguyên
+    private void showMakeOfferDialog() {
+        if (currentUser == null) { Toast.makeText(this, "Vui lòng đăng nhập để trả giá", Toast.LENGTH_SHORT).show(); return; }
+        if (currentListing == null) return;
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         LayoutInflater inflater = this.getLayoutInflater();
         View dialogView = inflater.inflate(R.layout.dialog_make_offer, null);
         builder.setView(dialogView);
-
         TextView textViewCurrentPrice = dialogView.findViewById(R.id.textViewCurrentPrice);
         EditText editTextOfferPrice = dialogView.findViewById(R.id.editTextOfferPrice);
-
         NumberFormat formatter = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
         textViewCurrentPrice.setText("Giá hiện tại: " + formatter.format(currentListing.getPrice()));
-
         builder.setPositiveButton("Gửi", (dialog, which) -> {
             String offerPriceStr = editTextOfferPrice.getText().toString();
-            if (TextUtils.isEmpty(offerPriceStr)) {
-                Toast.makeText(this, "Vui lòng nhập số tiền", Toast.LENGTH_SHORT).show();
-                return;
-            }
+            if (TextUtils.isEmpty(offerPriceStr)) { Toast.makeText(this, "Vui lòng nhập số tiền", Toast.LENGTH_SHORT).show(); return; }
             long offerPrice = Long.parseLong(offerPriceStr);
             submitOffer(offerPrice);
         });
         builder.setNegativeButton("Hủy", (dialog, which) -> dialog.dismiss());
-
         AlertDialog dialog = builder.create();
         dialog.show();
     }
-
     private void submitOffer(long offerPrice) {
         DataModels.Offer newOffer = new DataModels.Offer();
         newOffer.setBuyerId(currentUser.getUid());
         newOffer.setBuyerName(currentUser.getDisplayName());
         newOffer.setOfferPrice(offerPrice);
         newOffer.setStatus("pending");
-
         DocumentReference listingRef = db.collection("listings").document(listingId);
-
-        listingRef.collection("offers")
-                .add(newOffer)
+        listingRef.collection("offers").add(newOffer)
                 .addOnSuccessListener(documentReference -> {
                     Toast.makeText(this, "Gửi trả giá thành công!", Toast.LENGTH_SHORT).show();
-                    listingRef.update("offersCount", FieldValue.increment(1))
-                            .addOnSuccessListener(aVoid -> Log.d(TAG, "Offers count incremented."))
-                            .addOnFailureListener(e -> Log.w(TAG, "Error incrementing offers count", e));
+                    listingRef.update("offersCount", FieldValue.increment(1));
                 })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
+                .addOnFailureListener(e -> Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
-
     private void toggleSaveListing() {
-        if (currentUser == null) {
-            Toast.makeText(this, "Bạn cần đăng nhập để thực hiện chức năng này", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (currentUser == null) { Toast.makeText(this, "Bạn cần đăng nhập để thực hiện chức năng này", Toast.LENGTH_SHORT).show(); return; }
         String userId = currentUser.getUid();
         DocumentReference userRef = db.collection("users").document(userId);
-
         if (isSaved) {
-            userRef.update("savedListings", FieldValue.arrayRemove(listingId))
-                    .addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã bỏ lưu", Toast.LENGTH_SHORT).show());
+            userRef.update("savedListings", FieldValue.arrayRemove(listingId)).addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã bỏ lưu", Toast.LENGTH_SHORT).show());
         } else {
-            userRef.update("savedListings", FieldValue.arrayUnion(listingId))
-                    .addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã lưu tin", Toast.LENGTH_SHORT).show());
+            userRef.update("savedListings", FieldValue.arrayUnion(listingId)).addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã lưu tin", Toast.LENGTH_SHORT).show());
         }
     }
-
     private void checkIsSaved() {
         if (currentUser == null) return;
-        db.collection("users").document(currentUser.getUid()).get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    if (documentSnapshot.exists()) {
-                        List<String> savedListings = (List<String>) documentSnapshot.get("savedListings");
-                        isSaved = savedListings != null && savedListings.contains(listingId);
-                        updateSaveButtonUI();
-                    }
-                });
+        db.collection("users").document(currentUser.getUid()).get().addOnSuccessListener(documentSnapshot -> {
+            if (documentSnapshot.exists()) {
+                List<String> savedListings = (List<String>) documentSnapshot.get("savedListings");
+                isSaved = savedListings != null && savedListings.contains(listingId);
+                updateSaveButtonUI();
+            }
+        });
     }
-
     private void updateSaveButtonUI() {
         if (isSaved) {
             btnSaveListing.setIconResource(R.drawable.ic_bookmark_filled_24);

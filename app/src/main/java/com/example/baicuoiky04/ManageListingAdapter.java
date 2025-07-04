@@ -1,10 +1,10 @@
+// Dán toàn bộ code này để thay thế file ManageListingAdapter.java cũ
 package com.example.baicuoiky04;
 
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
@@ -25,6 +25,7 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
         void onEdit(DataModels.Listing listing);
         void onDelete(DataModels.Listing listing);
         void onChangeStatus(DataModels.Listing listing);
+        void onArchive(DataModels.Listing listing); // Thêm hàm này
     }
 
     private Context context;
@@ -56,6 +57,7 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
     }
 
     class ViewHolder extends RecyclerView.ViewHolder {
+        // ... Các view giữ nguyên
         ImageView imageViewProduct;
         TextView textViewTitle, textViewPrice, textViewStatus, textViewViews, textViewOffers;
         ImageButton buttonMoreOptions;
@@ -72,13 +74,13 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
         }
 
         void bind(DataModels.Listing listing, OnActionListener listener) {
+            // ... Logic bind cũ giữ nguyên
             textViewTitle.setText(listing.getTitle());
 
             NumberFormat formatter = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
             textViewPrice.setText(formatter.format(listing.getPrice()));
 
             String status = listing.getStatus();
-
             if ("available".equalsIgnoreCase(status)) {
                 textViewStatus.setText("ĐANG BÁN");
                 textViewStatus.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(context, R.color.status_available)));
@@ -122,6 +124,9 @@ public class ManageListingAdapter extends RecyclerView.Adapter<ManageListingAdap
                     return true;
                 } else if (itemId == R.id.action_change_status) {
                     listener.onChangeStatus(listing);
+                    return true;
+                } else if (itemId == R.id.action_archive) { // Thêm case này
+                    listener.onArchive(listing);
                     return true;
                 }
                 return false;

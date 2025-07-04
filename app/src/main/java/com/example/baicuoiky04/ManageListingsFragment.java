@@ -1,3 +1,5 @@
+// Dán toàn bộ code này để thay thế file ManageListingsFragment.java cũ
+
 package com.example.baicuoiky04;
 
 import android.content.Intent;
@@ -6,6 +8,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.PopupMenu; // Thêm import này nếu thiếu
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -20,6 +23,7 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Query;
 import java.util.ArrayList;
+import java.util.Arrays; // Thêm import này
 import java.util.List;
 
 public class ManageListingsFragment extends Fragment {
@@ -77,7 +81,20 @@ public class ManageListingsFragment extends Fragment {
             public void onChangeStatus(DataModels.Listing listing) {
                 showChangeStatusDialog(listing);
             }
+
+            // ================== THÊM HÀM MỚI NÀY ==================
+            @Override
+            public void onArchive(DataModels.Listing listing) {
+                new AlertDialog.Builder(getContext())
+                        .setTitle("Lưu trữ tin đăng")
+                        .setMessage("Tin đăng sẽ được ẩn đi. Bạn có thể xem và khôi phục lại trong mục 'Tin đã lưu trữ' ở trang cá nhân. Bạn có chắc chắn không?")
+                        .setPositiveButton("Lưu trữ", (dialog, which) -> updateListingStatus(listing, "archived"))
+                        .setNegativeButton("Hủy", null)
+                        .show();
+            }
+            // ========================================================
         };
+        // Sửa hàm khởi tạo adapter
         adapter = new ManageListingAdapter(getContext(), myListings, listener);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerView.setAdapter(adapter);
@@ -90,7 +107,12 @@ public class ManageListingsFragment extends Fragment {
                 .setTitle("Chọn trạng thái mới")
                 .setItems(displayStatuses, (dialog, which) -> {
                     String newStatus = statuses[which];
-                    updateListingStatus(listing, newStatus);
+                    // Nếu người dùng chọn "Đã bán", cần có thêm bước chọn người mua
+                    if ("sold".equals(newStatus)) {
+                        Toast.makeText(getContext(), "Vui lòng chấp nhận một trả giá để đánh dấu là 'Đã bán'.", Toast.LENGTH_LONG).show();
+                    } else {
+                        updateListingStatus(listing, newStatus);
+                    }
                 })
                 .create().show();
     }
@@ -99,7 +121,11 @@ public class ManageListingsFragment extends Fragment {
         db.collection("listings").document(listing.getListingId())
                 .update("status", newStatus)
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(getContext(), "Cập nhật trạng thái thành công!", Toast.LENGTH_SHORT).show();
+                    String message = "Cập nhật trạng thái thành công!";
+                    if ("archived".equals(newStatus)) {
+                        message = "Đã lưu trữ tin đăng!";
+                    }
+                    Toast.makeText(getContext(), message, Toast.LENGTH_SHORT).show();
                     loadMyListings();
                 })
                 .addOnFailureListener(e -> Toast.makeText(getContext(), "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
@@ -119,8 +145,13 @@ public class ManageListingsFragment extends Fragment {
         progressBar.setVisibility(View.VISIBLE);
         textViewEmpty.setVisibility(View.GONE);
 
+        // ================== CẬP NHẬT CÂU QUERY Ở ĐÂY ==================
+        // Chỉ hiển thị các tin đang hoạt động hoặc đã bán, không hiển thị tin lưu trữ
+        List<String> statusesToView = Arrays.asList("available", "paused", "sold");
+
         db.collection("listings")
                 .whereEqualTo("sellerId", currentUser.getUid())
+                .whereIn("status", statusesToView) // Chỉ lấy các tin có status này
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
@@ -137,5 +168,6 @@ public class ManageListingsFragment extends Fragment {
                     progressBar.setVisibility(View.GONE);
                     Log.e(TAG, "Error loading listings", e);
                 });
+        // =============================================================
     }
 }
