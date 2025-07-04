@@ -22,6 +22,8 @@ public final class DataModels {
         private long totalTransactions;
         private List<String> savedListings;
         private String accountStatus;
+
+        private String role;
         @ServerTimestamp
         private Date createdAt;
 
@@ -51,6 +53,9 @@ public final class DataModels {
         public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
         public Date getCreatedAt() { return createdAt; }
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
     }
     public static class Report {
         private String reporterId;
@@ -76,6 +81,14 @@ public final class DataModels {
         public void setComment(String comment) { this.comment = comment; }
         public Date getCreatedAt() { return createdAt; }
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+
+        @Exclude // Quan trọng: Để không lưu trường này vào document Report trên Firestore
+        private User reportedUserObject;
+
+        // Thêm getter/setter
+        @Exclude
+        public User getReportedUserObject() { return reportedUserObject; }
+        public void setReportedUserObject(User reportedUserObject) { this.reportedUserObject = reportedUserObject; }
     }
     public static class Listing {
         private String listingId;

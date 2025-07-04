@@ -154,6 +154,15 @@
                 app:icon="@drawable/ic_edit_24"
                 android:text="Chỉnh sửa hồ sơ"/>
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonAdminDashboard"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:icon="@drawable/ic_admin_panel_24"
+                android:text="Bảng điều khiển Admin"
+                android:visibility="gone"
+                tools:visibility="visible"/>
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonLogout"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"

@@ -71,24 +71,26 @@ public class MyOffersActivity extends AppCompatActivity {
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
 
-        // ================== CẬP NHẬT LOGIC Ở ĐÂY ==================
         adapter.setOnActionListener(new MyOffersAdapter.OnActionListener() {
             @Override
             public void onPayClicked(DataModels.OfferWithListing item) {
-                // FR-10: Payment
-                // Chức năng thanh toán nâng cao, hiện tại chỉ cần hiển thị Toast
-                Toast.makeText(MyOffersActivity.this, "Chức năng thanh toán cho '" + item.getListing().getTitle() + "' đang được phát triển!", Toast.LENGTH_LONG).show();
+                // ================== CẬP NHẬT Ở ĐÂY ==================
+                // Mở màn hình thanh toán và truyền dữ liệu đơn hàng sang
+                Intent intent = new Intent(MyOffersActivity.this, PaymentActivity.class);
+                intent.putExtra(PaymentActivity.EXTRA_LISTING_NAME, item.getListing().getTitle());
+                intent.putExtra(PaymentActivity.EXTRA_SELLER_NAME, item.getListing().getSellerName());
+                intent.putExtra(PaymentActivity.EXTRA_OFFER_PRICE, item.getOffer().getOfferPrice());
+                startActivity(intent);
+                // ========================================================
             }
 
             @Override
             public void onMakeAnotherOfferClicked(DataModels.OfferWithListing item) {
-                // Mở lại màn hình chi tiết sản phẩm để người dùng trả giá lại
                 Intent intent = new Intent(MyOffersActivity.this, ListingDetailActivity.class);
                 intent.putExtra("LISTING_ID", item.getListing().getListingId());
                 startActivity(intent);
             }
         });
-        // ========================================================
     }
 
     private void loadMyOffers() {

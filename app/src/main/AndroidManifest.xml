@@ -93,5 +93,12 @@
         android:name=".ArchivedListingsActivity"
         android:exported="false"
         android:parentActivityName=".MainActivity" />
+    <activity
+        android:name=".AdminDashboardActivity"
+        android:exported="false"
+        android:parentActivityName=".MainActivity" />
+    <activity
+        android:name=".PaymentActivity"
+        android:exported="false" />
 </application>
     </manifest>
