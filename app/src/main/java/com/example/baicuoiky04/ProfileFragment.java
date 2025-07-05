@@ -30,6 +30,8 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.google.android.material.button.MaterialButton;
@@ -40,12 +42,15 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -57,18 +62,21 @@ public class ProfileFragment extends Fragment {
 
     private CircleImageView profileImageView;
     private FloatingActionButton fabChangeImage;
-    private TextView textViewDisplayName, textViewRatingValue, textViewTotalTransactions, textViewBio, textViewContactInfo;
+    private TextView textViewDisplayName, textViewRatingValue, textViewTotalTransactions, textViewBio, textViewContactInfo, textViewNoReviews;
     private RatingBar ratingBar;
     private LinearLayout ownerActionsLayout;
-    private MaterialButton buttonAdminDashboard, buttonEditProfile, buttonLogout, buttonDeactivate, buttonDelete; // Thêm buttonAdminDashboard
+    private MaterialButton buttonAdminDashboard, buttonEditProfile, buttonLogout, buttonDeactivate, buttonDelete;
     private MaterialButton buttonPurchaseHistory, buttonSalesHistory, buttonOfferHistory;
     private MaterialButton buttonReportUser;
+    private RecyclerView recyclerViewReviews;
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private FirebaseStorage storage;
     private FirebaseUser currentUser;
     private ListenerRegistration userProfileListener;
+    private ReviewAdapter reviewAdapter;
+    private List<DataModels.Review> reviewList;
 
     private String userIdToView;
     private DataModels.User currentUserData;
@@ -122,6 +130,7 @@ public class ProfileFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_profile, container, false);
         initViews(view);
+        setupRecyclerView();
         return view;
     }
 
@@ -130,6 +139,7 @@ public class ProfileFragment extends Fragment {
         super.onStart();
         if (userIdToView != null && !userIdToView.isEmpty()) {
             attachUserProfileListener(userIdToView);
+            loadUserReviews(userIdToView); // Tải review khi fragment bắt đầu
         } else {
             Toast.makeText(getContext(), "Không có thông tin người dùng", Toast.LENGTH_SHORT).show();
         }
@@ -168,7 +178,7 @@ public class ProfileFragment extends Fragment {
         textViewBio = view.findViewById(R.id.textViewBio);
         textViewContactInfo = view.findViewById(R.id.textViewContactInfo);
         ownerActionsLayout = view.findViewById(R.id.ownerActionsLayout);
-        buttonAdminDashboard = view.findViewById(R.id.buttonAdminDashboard); // Thêm dòng này
+        buttonAdminDashboard = view.findViewById(R.id.buttonAdminDashboard);
         buttonEditProfile = view.findViewById(R.id.buttonEditProfile);
         buttonLogout = view.findViewById(R.id.buttonLogout);
         buttonDeactivate = view.findViewById(R.id.buttonDeactivate);
@@ -177,6 +187,15 @@ public class ProfileFragment extends Fragment {
         buttonSalesHistory = view.findViewById(R.id.buttonSalesHistory);
         buttonOfferHistory = view.findViewById(R.id.buttonOfferHistory);
         buttonReportUser = view.findViewById(R.id.buttonReportUser);
+        recyclerViewReviews = view.findViewById(R.id.recyclerViewReviews); // Thêm dòng này
+        textViewNoReviews = view.findViewById(R.id.textViewNoReviews);   // Thêm dòng này
+    }
+
+    private void setupRecyclerView() {
+        reviewList = new ArrayList<>();
+        reviewAdapter = new ReviewAdapter(getContext(), reviewList);
+        recyclerViewReviews.setLayoutManager(new LinearLayoutManager(getContext()));
+        recyclerViewReviews.setAdapter(reviewAdapter);
     }
 
     private void updateUI(DataModels.User user) {
@@ -210,7 +229,7 @@ public class ProfileFragment extends Fragment {
             ownerActionsLayout.setVisibility(View.VISIBLE);
             fabChangeImage.setVisibility(View.VISIBLE);
             buttonReportUser.setVisibility(View.GONE);
-            setupOwnerActions(user); // Truyền user vào
+            setupOwnerActions(user);
         } else {
             ownerActionsLayout.setVisibility(View.GONE);
             fabChangeImage.setVisibility(View.GONE);
@@ -218,12 +237,9 @@ public class ProfileFragment extends Fragment {
             buttonReportUser.setOnClickListener(v -> showReportDialog());
         }
     }
-
-    // ================== CẬP NHẬT HÀM NÀY ==================
     private void setupOwnerActions(DataModels.User user) {
         if (getView() == null) return;
 
-        // Kiểm tra vai trò và hiển thị nút Admin
         if ("admin".equals(user.getRole())) {
             buttonAdminDashboard.setVisibility(View.VISIBLE);
             buttonAdminDashboard.setOnClickListener(v -> {
@@ -273,9 +289,7 @@ public class ProfileFragment extends Fragment {
             }
         });
     }
-    // ==========================================================
 
-    // ... các hàm còn lại giữ nguyên ...
     private void checkPermissionAndPickImage() {
         String permission;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -297,69 +311,31 @@ public class ProfileFragment extends Fragment {
     private void compressAndUploadImage(Uri imageUri) {
         try {
             Bitmap bitmap = MediaStore.Images.Media.getBitmap(requireContext().getContentResolver(), imageUri);
-
-            int originalWidth = bitmap.getWidth();
-            int originalHeight = bitmap.getHeight();
-            float aspectRatio = (float) originalWidth / (float) originalHeight;
             int targetWidth = 800;
-            int targetHeight = Math.round(targetWidth / aspectRatio);
-
+            int targetHeight = (int) (bitmap.getHeight() * ( (float) targetWidth / (float) bitmap.getWidth()));
             Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, false);
-
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos);
             byte[] data = baos.toByteArray();
-
             uploadImageToFirebaseStorage(data);
-
         } catch (IOException e) {
-            Toast.makeText(getContext(), "Lỗi khi xử lý ảnh.", Toast.LENGTH_SHORT).show();
             Log.e(TAG, "Error processing image", e);
         }
     }
     private void uploadImageToFirebaseStorage(byte[] imageData) {
         if (currentUser == null) return;
-
-        final String userId = currentUser.getUid();
-        final StorageReference fileReference = storage.getReference("profile_pics").child(userId + "/" + UUID.randomUUID().toString() + ".jpg");
-
+        final StorageReference fileReference = storage.getReference("profile_pics").child(currentUser.getUid() + "/" + UUID.randomUUID().toString() + ".jpg");
         Toast.makeText(getContext(), "Đang cập nhật ảnh đại diện...", Toast.LENGTH_LONG).show();
-
-        UploadTask uploadTask = fileReference.putBytes(imageData);
-        uploadTask.addOnSuccessListener(taskSnapshot -> {
-            fileReference.getDownloadUrl().addOnSuccessListener(uri -> {
-                String newPhotoUrl = uri.toString();
-                updateAllUserReferences(userId, newPhotoUrl);
-            }).addOnFailureListener(e -> {
-                Toast.makeText(getContext(), "Lỗi: Không lấy được link ảnh.", Toast.LENGTH_SHORT).show();
-                Log.e(TAG, "Failed to get download URL", e);
-            });
-        }).addOnFailureListener(e -> {
-            Toast.makeText(getContext(), "Tải ảnh lên thất bại: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            Log.e(TAG, "Image upload failed", e);
-        });
+        fileReference.putBytes(imageData).addOnSuccessListener(taskSnapshot -> fileReference.getDownloadUrl().addOnSuccessListener(uri -> {
+            updateAllUserReferences(currentUser.getUid(), uri.toString());
+        })).addOnFailureListener(e -> Toast.makeText(getContext(), "Tải ảnh lên thất bại: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
     private void updateAllUserReferences(String userId, String newPhotoUrl) {
         if (currentUser == null) return;
-        UserProfileChangeRequest profileUpdates = new UserProfileChangeRequest.Builder()
-                .setPhotoUri(Uri.parse(newPhotoUrl))
-                .build();
-        currentUser.updateProfile(profileUpdates)
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        Log.d(TAG, "User profile photo updated in Auth.");
-                    }
-                });
-        db.collection("users").document(userId)
-                .update("photoUrl", newPhotoUrl)
-                .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(getContext(), "Cập nhật ảnh đại diện thành công!", Toast.LENGTH_SHORT).show();
-                    Log.d(TAG, "User photo URL updated in Firestore.");
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(getContext(), "Lỗi khi cập nhật link ảnh trong hồ sơ.", Toast.LENGTH_SHORT).show();
-                    Log.e(TAG, "Failed to update photo URL in Firestore", e);
-                });
+        UserProfileChangeRequest profileUpdates = new UserProfileChangeRequest.Builder().setPhotoUri(Uri.parse(newPhotoUrl)).build();
+        currentUser.updateProfile(profileUpdates);
+        db.collection("users").document(userId).update("photoUrl", newPhotoUrl)
+                .addOnSuccessListener(aVoid -> Toast.makeText(getContext(), "Cập nhật ảnh đại diện thành công!", Toast.LENGTH_SHORT).show());
     }
     private void openHistory(String historyType) {
         Intent intent = new Intent(getActivity(), HistoryActivity.class);
@@ -378,26 +354,20 @@ public class ProfileFragment extends Fragment {
     private void deleteAccount() {
         if (currentUser == null) return;
         db.collection("users").document(currentUser.getUid()).delete()
-                .addOnSuccessListener(aVoid -> {
-                    currentUser.delete().addOnCompleteListener(task -> {
-                        if (task.isSuccessful()) {
-                            Toast.makeText(getContext(), "Tài khoản đã được xóa vĩnh viễn.", Toast.LENGTH_SHORT).show();
-                            goToLogin();
-                        } else {
-                            Log.e(TAG, "Failed to delete user from Auth", task.getException());
-                            Toast.makeText(getContext(), "Lỗi xóa tài khoản, vui lòng đăng nhập lại và thử lại.", Toast.LENGTH_LONG).show();
-                        }
-                    });
-                });
+                .addOnSuccessListener(aVoid -> currentUser.delete().addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        Toast.makeText(getContext(), "Tài khoản đã được xóa vĩnh viễn.", Toast.LENGTH_SHORT).show();
+                        goToLogin();
+                    } else {
+                        Toast.makeText(getContext(), "Lỗi xóa tài khoản, vui lòng đăng nhập lại và thử lại.", Toast.LENGTH_LONG).show();
+                    }
+                }));
     }
     private void showConfirmationDialog(String title, String message, Runnable onConfirm) {
         if (getContext() == null) return;
-        new AlertDialog.Builder(getContext())
-                .setTitle(title)
-                .setMessage(message)
+        new AlertDialog.Builder(getContext()).setTitle(title).setMessage(message)
                 .setPositiveButton("Xác nhận", (dialog, which) -> onConfirm.run())
-                .setNegativeButton("Hủy", null)
-                .show();
+                .setNegativeButton("Hủy", null).show();
     }
     private void goToLogin() {
         if (getActivity() != null) {
@@ -407,22 +377,17 @@ public class ProfileFragment extends Fragment {
             getActivity().finish();
         }
     }
-
     private void showReportDialog() {
         if (getContext() == null || currentUser == null) return;
-
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         LayoutInflater inflater = requireActivity().getLayoutInflater();
         View dialogView = inflater.inflate(R.layout.dialog_report, null);
         builder.setView(dialogView);
-
         TextView reportTitle = dialogView.findViewById(R.id.textViewReportTitle);
         reportTitle.setText("Báo cáo người dùng: " + currentUserData.getDisplayName());
-
         final RadioGroup radioGroup = dialogView.findViewById(R.id.radioGroupReasons);
         final TextInputLayout commentLayout = dialogView.findViewById(R.id.textInputLayoutComment);
         final EditText commentEditText = dialogView.findViewById(R.id.editTextComment);
-
         radioGroup.setOnCheckedChangeListener((group, checkedId) -> {
             if (checkedId == R.id.radioOther) {
                 commentLayout.setVisibility(View.VISIBLE);
@@ -430,19 +395,14 @@ public class ProfileFragment extends Fragment {
                 commentLayout.setVisibility(View.GONE);
             }
         });
-
         builder.setPositiveButton("Gửi báo cáo", (dialog, which) -> {
             int selectedId = radioGroup.getCheckedRadioButtonId();
-            if (selectedId == -1) {
-                Toast.makeText(getContext(), "Vui lòng chọn lý do báo cáo", Toast.LENGTH_SHORT).show();
-                return;
-            }
+            if (selectedId == -1) return;
             String reason = "";
             if (selectedId == R.id.radioScam) reason = "Lừa đảo";
             else if(selectedId == R.id.radioInappropriate) reason = "Nội dung không phù hợp";
             else if(selectedId == R.id.radioSpam) reason = "Spam";
             else if (selectedId == R.id.radioOther) reason = "Khác";
-
             String comment = commentEditText.getText().toString().trim();
             submitUserReport(reason, comment);
         });
@@ -455,9 +415,35 @@ public class ProfileFragment extends Fragment {
         report.setReportedUserId(userIdToView);
         report.setReason(reason);
         report.setComment(comment);
-
-        db.collection("reports").add(report)
-                .addOnSuccessListener(documentReference -> Toast.makeText(getContext(), "Cảm ơn bạn đã gửi báo cáo.", Toast.LENGTH_LONG).show())
-                .addOnFailureListener(e -> Toast.makeText(getContext(), "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        db.collection("reports").add(report).addOnSuccessListener(documentReference -> Toast.makeText(getContext(), "Cảm ơn bạn đã gửi báo cáo.", Toast.LENGTH_LONG).show());
     }
+
+    private void loadUserReviews(String userId) {
+        if (getContext() == null || TextUtils.isEmpty(userId)) {
+            return;
+        }
+
+        db.collection("users").document(userId).collection("reviews")
+                // KHÔNG CÒN .whereEqualTo("status", "visible") NỮA
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .limit(5)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (getContext() == null) return;
+                    reviewList.clear();
+                    if (queryDocumentSnapshots.isEmpty()) {
+                        textViewNoReviews.setVisibility(View.VISIBLE);
+                        recyclerViewReviews.setVisibility(View.GONE);
+                    } else {
+                        textViewNoReviews.setVisibility(View.GONE);
+                        recyclerViewReviews.setVisibility(View.VISIBLE);
+                        reviewList.addAll(queryDocumentSnapshots.toObjects(DataModels.Review.class));
+                    }
+                    reviewAdapter.notifyDataSetChanged();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Error loading reviews", e);
+                });
+    }
+    // ==========================================================
 }

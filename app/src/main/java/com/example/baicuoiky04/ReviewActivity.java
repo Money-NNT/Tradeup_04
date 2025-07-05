@@ -1,3 +1,5 @@
+// Dán toàn bộ code này để thay thế file ReviewActivity.java
+
 package com.example.baicuoiky04;
 
 import android.os.Bundle;
@@ -106,19 +108,14 @@ public class ReviewActivity extends AppCompatActivity {
         db.runTransaction((Transaction.Function<Void>) transaction -> {
             DocumentSnapshot userSnapshot = transaction.get(userToReviewRef);
 
-            // Lấy giá trị cũ một cách an toàn
             long totalReviews = userSnapshot.contains("totalReviews") ? userSnapshot.getLong("totalReviews") : 0;
             double currentRating = userSnapshot.contains("averageRating") ? userSnapshot.getDouble("averageRating") : 0.0;
 
-            // Tính toán giá trị mới
             double newAverageRating = ((currentRating * totalReviews) + rating) / (totalReviews + 1);
             long newTotalReviews = totalReviews + 1;
 
-            // Thực hiện cập nhật trong transaction
             transaction.update(userToReviewRef, "averageRating", newAverageRating);
             transaction.update(userToReviewRef, "totalReviews", newTotalReviews);
-
-            // Thêm review mới vào sub-collection
             transaction.set(newReviewRef, newReview);
 
             return null;
