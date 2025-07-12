@@ -1,16 +1,16 @@
-// Dán toàn bộ code này để thay thế file ReviewActivity.java
-
 package com.example.baicuoiky04;
 
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.RatingBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.button.MaterialButton;
@@ -20,7 +20,6 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.Transaction;
 
 public class ReviewActivity extends AppCompatActivity {
@@ -75,9 +74,12 @@ public class ReviewActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean onSupportNavigateUp() {
-        onBackPressed();
-        return true;
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            onBackPressed();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void setupListeners() {
@@ -94,24 +96,45 @@ public class ReviewActivity extends AppCompatActivity {
 
         setLoading(true);
 
-        DataModels.Review newReview = new DataModels.Review();
-        newReview.setListingId(listingId);
-        newReview.setReviewerId(currentUser.getUid());
-        newReview.setReviewerName(currentUser.getDisplayName());
-        newReview.setReviewerPhotoUrl(currentUser.getPhotoUrl() != null ? currentUser.getPhotoUrl().toString() : "");
-        newReview.setRating(rating);
-        newReview.setComment(comment);
+        // Lấy thông tin mới nhất của người đánh giá (reviewer)
+        db.collection("users").document(currentUser.getUid()).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (!documentSnapshot.exists()) {
+                        Toast.makeText(this, "Lỗi: Không tìm thấy thông tin của bạn.", Toast.LENGTH_SHORT).show();
+                        setLoading(false);
+                        return;
+                    }
 
+                    String reviewerName = documentSnapshot.getString("displayName");
+                    String reviewerPhotoUrl = documentSnapshot.getString("photoUrl");
+
+                    DataModels.Review newReview = new DataModels.Review();
+                    newReview.setListingId(listingId);
+                    newReview.setReviewerId(currentUser.getUid());
+                    newReview.setReviewerName(reviewerName);
+                    newReview.setReviewerPhotoUrl(reviewerPhotoUrl);
+                    newReview.setRating(rating);
+                    newReview.setComment(comment);
+                    newReview.setStatus("visible");
+
+                    // Tiến hành transaction để cập nhật rating
+                    runUpdateRatingTransaction(newReview);
+
+                }).addOnFailureListener(e -> {
+                    Toast.makeText(this, "Lỗi khi lấy thông tin của bạn.", Toast.LENGTH_SHORT).show();
+                    setLoading(false);
+                });
+    }
+
+    private void runUpdateRatingTransaction(DataModels.Review newReview) {
         DocumentReference userToReviewRef = db.collection("users").document(userIdToReview);
         DocumentReference newReviewRef = userToReviewRef.collection("reviews").document();
 
         db.runTransaction((Transaction.Function<Void>) transaction -> {
             DocumentSnapshot userSnapshot = transaction.get(userToReviewRef);
-
             long totalReviews = userSnapshot.contains("totalReviews") ? userSnapshot.getLong("totalReviews") : 0;
             double currentRating = userSnapshot.contains("averageRating") ? userSnapshot.getDouble("averageRating") : 0.0;
-
-            double newAverageRating = ((currentRating * totalReviews) + rating) / (totalReviews + 1);
+            double newAverageRating = ((currentRating * totalReviews) + newReview.getRating()) / (totalReviews + 1);
             long newTotalReviews = totalReviews + 1;
 
             transaction.update(userToReviewRef, "averageRating", newAverageRating);

@@ -4,8 +4,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.View;
-import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -14,6 +12,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 public class CreateProfileActivity extends AppCompatActivity {
@@ -22,7 +21,7 @@ public class CreateProfileActivity extends AppCompatActivity {
 
     private TextInputEditText editTextDisplayName;
     private MaterialButton buttonCompleteProfile;
-    private ProgressBar progressBar;
+
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
 
@@ -31,32 +30,25 @@ public class CreateProfileActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_profile);
 
-        Log.d(TAG, "onCreate: Activity đã được tạo.");
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
 
         editTextDisplayName = findViewById(R.id.editTextDisplayName);
         buttonCompleteProfile = findViewById(R.id.buttonCompleteProfile);
-        // BỎ QUA progressBar VÌ KHÔNG CÓ TRONG LAYOUT CỦA BẠN
-        // progressBar = findViewById(R.id.progressBar);
 
-        // *** DÒNG CODE SỬA LỖI ĐƯỢC THÊM VÀO ĐÂY ***
         buttonCompleteProfile.setOnClickListener(v -> completeProfile());
     }
 
     private void completeProfile() {
-        Log.d(TAG, "completeProfile: Nút hoàn tất được nhấn.");
-        String displayName = editTextDisplayName.getText().toString().trim();
-        FirebaseUser currentUser = mAuth.getCurrentUser();
+        final String displayName = editTextDisplayName.getText().toString().trim();
+        final FirebaseUser currentUser = mAuth.getCurrentUser();
 
         if (TextUtils.isEmpty(displayName)) {
             editTextDisplayName.setError("Tên không được để trống.");
-            Log.w(TAG, "completeProfile: Tên hiển thị rỗng.");
             return;
         }
 
         if (currentUser == null) {
-            Log.e(TAG, "completeProfile: Lỗi nghiêm trọng, user hiện tại là null.");
             Toast.makeText(this, "Lỗi xác thực, vui lòng đăng nhập lại.", Toast.LENGTH_SHORT).show();
             startActivity(new Intent(this, LoginActivity.class));
             finish();
@@ -65,26 +57,39 @@ public class CreateProfileActivity extends AppCompatActivity {
 
         setLoadingState(true);
 
-        Log.d(TAG, "completeProfile: Bắt đầu cập nhật displayName trên Firestore cho user: " + currentUser.getUid());
-        db.collection("users").document(currentUser.getUid())
-                .update("displayName", displayName)
-                .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "update:success - Cập nhật tên thành công.");
-                    Toast.makeText(CreateProfileActivity.this, "Hồ sơ đã được tạo! Vui lòng đăng nhập lại.", Toast.LENGTH_LONG).show();
+        // BƯỚC 1: Cập nhật displayName trong Firebase Authentication
+        UserProfileChangeRequest profileUpdates = new UserProfileChangeRequest.Builder()
+                .setDisplayName(displayName)
+                .build();
 
-                    mAuth.signOut();
-                    Log.d(TAG, "signOut:success - Đăng xuất người dùng để họ đăng nhập lại.");
+        currentUser.updateProfile(profileUpdates).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                Log.d(TAG, "BƯỚC 1 THÀNH CÔNG: Cập nhật tên trong Firebase Auth.");
 
-                    Intent intent = new Intent(CreateProfileActivity.this, LoginActivity.class);
-                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                    startActivity(intent);
-                    finish();
-                })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "update:failure - Lỗi khi cập nhật tên.", e);
-                    Toast.makeText(CreateProfileActivity.this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    setLoadingState(false);
-                });
+                // BƯỚC 2: Cập nhật displayName trong Cloud Firestore
+                db.collection("users").document(currentUser.getUid())
+                        .update("displayName", displayName)
+                        .addOnSuccessListener(aVoid -> {
+                            Log.d(TAG, "BƯỚC 2 THÀNH CÔNG: Cập nhật tên trong Firestore.");
+                            Toast.makeText(CreateProfileActivity.this, "Hồ sơ đã được tạo! Chào mừng bạn!", Toast.LENGTH_LONG).show();
+
+                            // Chuyển thẳng vào MainActivity
+                            Intent intent = new Intent(CreateProfileActivity.this, MainActivity.class);
+                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                            startActivity(intent);
+                            finish();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "BƯỚC 2 THẤT BẠI: Lỗi khi cập nhật Firestore.", e);
+                            Toast.makeText(this, "Lỗi khi lưu hồ sơ.", Toast.LENGTH_SHORT).show();
+                            setLoadingState(false);
+                        });
+            } else {
+                Log.e(TAG, "BƯỚC 1 THẤT BẠI: Lỗi khi cập nhật Firebase Auth.", task.getException());
+                Toast.makeText(this, "Lỗi khi cập nhật hồ sơ.", Toast.LENGTH_SHORT).show();
+                setLoadingState(false);
+            }
+        });
     }
 
     private void setLoadingState(boolean isLoading) {

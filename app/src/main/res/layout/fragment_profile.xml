@@ -9,29 +9,31 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
         android:padding="16dp"
-        android:gravity="center_horizontal"
         tools:context=".ProfileFragment">
 
-        <!-- Các view trên cùng giữ nguyên -->
         <FrameLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp">
+
             <de.hdodenhof.circleimageview.CircleImageView
                 android:id="@+id/profileImageView"
                 android:layout_width="120dp"
                 android:layout_height="120dp"
                 android:src="@drawable/ic_profile_placeholder" />
+
             <com.google.android.material.floatingactionbutton.FloatingActionButton
                 android:id="@+id/fabChangeImage"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
-                app:srcCompat="@drawable/ic_camera_24"
-                app:fabSize="mini"/>
+                app:fabSize="mini"
+                app:srcCompat="@drawable/ic_camera_24" />
         </FrameLayout>
+
         <TextView
             android:id="@+id/textViewDisplayName"
             android:layout_width="wrap_content"
@@ -40,12 +42,14 @@
             android:textSize="22sp"
             android:textStyle="bold"
             tools:text="Nguyễn Thị Hương" />
+
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
+            android:layout_marginTop="4dp"
             android:gravity="center_vertical"
-            android:layout_marginTop="4dp">
+            android:orientation="horizontal">
+
             <RatingBar
                 android:id="@+id/ratingBar"
                 style="?android:attr/ratingBarStyleSmall"
@@ -53,20 +57,23 @@
                 android:layout_height="wrap_content"
                 android:isIndicator="true"
                 android:numStars="5"
-                tools:rating="4.5"/>
+                tools:rating="4.5" />
+
             <TextView
                 android:id="@+id/textViewRatingValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
-                tools:text="4.5"/>
+                tools:text="4.5" />
         </LinearLayout>
+
         <TextView
             android:id="@+id/textViewTotalTransactions"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             tools:text="128 giao dịch thành công" />
+
         <TextView
             android:id="@+id/textViewBio"
             android:layout_width="match_parent"
@@ -76,8 +83,9 @@
             android:padding="16dp"
             android:textAlignment="center"
             android:visibility="gone"
-            tools:visibility="visible"
-            tools:text="Xin chào! Tôi là một người bán hàng đáng tin cậy..." />
+            tools:text="Xin chào! Tôi là một người bán hàng đáng tin cậy..."
+            tools:visibility="visible" />
+
         <TextView
             android:id="@+id/textViewContactInfo"
             android:layout_width="match_parent"
@@ -88,21 +96,22 @@
             android:textColor="?android:attr/textColorSecondary"
             android:visibility="gone"
             app:drawableStartCompat="@drawable/ic_phone_24"
-            tools:visibility="visible"
-            tools:text="Liên hệ: 0987 654 321" />
+            tools:text="Liên hệ: 0987 654 321"
+            tools:visibility="visible" />
+
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:background="?android:attr/listDivider"
             android:layout_marginTop="24dp"
-            android:layout_marginBottom="16dp"/>
+            android:layout_marginBottom="16dp"
+            android:background="?android:attr/listDivider" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Đánh giá gần đây"
             android:textSize="18sp"
-            android:textStyle="bold"/>
+            android:textStyle="bold" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerViewReviews"
@@ -111,115 +120,147 @@
             android:layout_marginTop="8dp"
             android:nestedScrollingEnabled="false"
             tools:itemCount="3"
-            tools:listitem="@layout/list_item_review"/>
+            tools:listitem="@layout/list_item_review" />
+
+        <TextView
+            android:id="@+id/textViewSeeAllReviews"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="8dp"
+            android:padding="8dp"
+            android:text="Xem tất cả đánh giá"
+            android:textColor="@color/colorPrimary"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:visibility="visible" />
 
         <TextView
             android:id="@+id/textViewNoReviews"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Chưa có đánh giá nào."
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="16dp"
-            android:visibility="gone"/>
-        <!-- Khối "Hoạt động của tôi" giữ nguyên -->
+            android:text="Chưa có đánh giá nào."
+            android:visibility="gone" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="24dp">
+            android:layout_marginTop="24dp"
+            android:orientation="vertical">
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
                 android:text="Hoạt động của tôi"
                 android:textSize="18sp"
-                android:textStyle="bold"
-                android:layout_marginBottom="8dp"/>
+                android:textStyle="bold" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonPurchaseHistory"
                 style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Lịch sử mua hàng"
                 android:gravity="start|center_vertical"
-                app:icon="@drawable/ic_shopping_bag_24"/>
+                android:text="Lịch sử mua hàng"
+                app:icon="@drawable/ic_shopping_bag_24" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonSalesHistory"
                 style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Lịch sử bán hàng"
                 android:gravity="start|center_vertical"
-                app:icon="@drawable/ic_storefront_24"/>
+                android:text="Lịch sử bán hàng"
+                app:icon="@drawable/ic_storefront_24" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonArchivedListings"
                 style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Tin đã lưu trữ"
                 android:gravity="start|center_vertical"
-                app:icon="@drawable/ic_archive_24"/>
+                android:text="Tin đã lưu trữ"
+                app:icon="@drawable/ic_archive_24" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonOfferHistory"
                 style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Lịch sử trả giá"
                 android:gravity="start|center_vertical"
-                app:icon="@drawable/ic_request_quote_24"/>
+                android:text="Lịch sử trả giá"
+                app:icon="@drawable/ic_request_quote_24" />
+
+            <!-- ================== NÚT MỚI ĐÃ ĐƯỢC THÊM VÀO ĐÂY ================== -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonSavedListings"
+                style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="start|center_vertical"
+                android:text="Tin đã lưu"
+                app:icon="@drawable/ic_bookmark_24" />
+            <!-- ================================================================= -->
+
         </LinearLayout>
 
-        <!-- Khối hành động của chủ sở hữu giữ nguyên -->
         <LinearLayout
             android:id="@+id/ownerActionsLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
             android:layout_marginTop="24dp"
+            android:orientation="vertical"
             android:visibility="gone"
             tools:visibility="visible">
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonEditProfile"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:icon="@drawable/ic_edit_24"
-                android:text="Chỉnh sửa hồ sơ"/>
+                android:text="Chỉnh sửa hồ sơ"
+                app:icon="@drawable/ic_edit_24" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonAdminDashboard"
                 style="@style/Widget.Material3.Button.TonalButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:icon="@drawable/ic_admin_panel_24"
                 android:text="Bảng điều khiển Admin"
                 android:visibility="gone"
-                tools:visibility="visible"/>
+                app:icon="@drawable/ic_admin_panel_24"
+                tools:visibility="visible" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonLogout"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                app:icon="@drawable/ic_logout_24"
-                android:text="Đăng xuất"/>
+                android:text="Đăng xuất"
+                app:icon="@drawable/ic_logout_24" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonDeactivate"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                app:icon="@drawable/ic_warning_24"
-                android:text="Hủy kích hoạt tài khoản"/>
+                android:text="Hủy kích hoạt tài khoản"
+                app:icon="@drawable/ic_warning_24" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/buttonDelete"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                app:icon="@drawable/ic_delete_forever_24"
-                android:text="Xóa tài khoản vĩnh viễn"/>
+                android:text="Xóa tài khoản vĩnh viễn"
+                app:icon="@drawable/ic_delete_forever_24" />
         </LinearLayout>
 
-        <!-- ================== THÊM NÚT NÀY VÀO ĐÂY ================== -->
-        <!-- NÚT BÁO CÁO CHO NGƯỜI DÙNG KHÁC -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonReportUser"
             style="@style/Widget.Material3.Button.OutlinedButton"
@@ -227,10 +268,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="Báo cáo người dùng này"
-            app:icon="@drawable/ic_report_24"
             android:visibility="gone"
-            tools:visibility="visible"/>
-        <!-- ========================================================== -->
-
+            app:icon="@drawable/ic_report_24"
+            tools:visibility="visible" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

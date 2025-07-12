@@ -1,5 +1,3 @@
-// Dán toàn bộ code này để thay thế file ListingDetailActivity.java cũ
-
 package com.example.baicuoiky04;
 
 import android.content.Intent;
@@ -13,6 +11,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -21,6 +20,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.content.ContextCompat;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
@@ -29,6 +29,7 @@ import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
@@ -48,16 +49,17 @@ public class ListingDetailActivity extends AppCompatActivity {
     private ViewPager2 viewPagerImageSlider;
     private TextView textViewTitleDetail, textViewPriceDetail, textViewTimestamp, textViewDescriptionDetail, textViewSellerName;
     private CircleImageView imageViewSeller;
-    private MaterialButton btnSaveListing, btnMakeOffer, btnBuyNow, btnPayNow;
+    private MaterialButton btnSaveListing, btnMakeOffer, btnBuyNow, btnPayNow, btnStartChat;
     private ImageSliderAdapter imageSliderAdapter;
     private View sellerInfoLayout;
-
+    private LinearLayout bottomActionLayout;
     private FirebaseFirestore db;
     private ListenerRegistration listingListener;
     private String listingId;
     private FirebaseUser currentUser;
-    private DataModels.Listing currentListing;
+    private DataModels.Listing currentListing = null;
     private boolean isSaved = false;
+    private boolean isDataLoaded = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,9 +88,48 @@ public class ListingDetailActivity extends AppCompatActivity {
         incrementViewCount();
     }
 
+    private void initViews() {
+        viewPagerImageSlider = findViewById(R.id.viewPagerImageSlider);
+        textViewTitleDetail = findViewById(R.id.textViewTitleDetail);
+        textViewPriceDetail = findViewById(R.id.textViewPriceDetail);
+        textViewTimestamp = findViewById(R.id.textViewTimestamp);
+        textViewDescriptionDetail = findViewById(R.id.textViewDescriptionDetail);
+        textViewSellerName = findViewById(R.id.textViewSellerName);
+        imageViewSeller = findViewById(R.id.imageViewSeller);
+        sellerInfoLayout = findViewById(R.id.sellerInfoLayout);
+        bottomActionLayout = findViewById(R.id.bottom_action_layout);
+        btnSaveListing = findViewById(R.id.btnSaveListing);
+        btnStartChat = findViewById(R.id.btnStartChat);
+        btnMakeOffer = findViewById(R.id.btnMakeOffer);
+        btnBuyNow = findViewById(R.id.btnBuyNow);
+        btnPayNow = findViewById(R.id.btnPayNow);
+
+        setBottomActionsEnabled(false);
+
+        btnSaveListing.setOnClickListener(v -> toggleSaveListing());
+        btnStartChat.setOnClickListener(v -> startChat());
+        btnMakeOffer.setOnClickListener(v -> showMakeOfferDialog());
+        btnBuyNow.setOnClickListener(v -> processBuyNow());
+        btnPayNow.setOnClickListener(v -> openPaymentActivity());
+        sellerInfoLayout.setOnClickListener(v -> {
+            if (isDataLoaded && currentListing != null) {
+                Intent intent = new Intent(this, ProfileViewActivity.class);
+                intent.putExtra("USER_ID", currentListing.getSellerId());
+                startActivity(intent);
+            }
+        });
+    }
+
+    private void setBottomActionsEnabled(boolean enabled) {
+        btnSaveListing.setEnabled(enabled);
+        btnStartChat.setEnabled(enabled);
+        btnMakeOffer.setEnabled(enabled);
+        btnBuyNow.setEnabled(enabled);
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        if (currentUser != null && currentListing != null && !currentUser.getUid().equals(currentListing.getSellerId())) {
+        if (isDataLoaded && currentUser != null && currentListing != null && !currentUser.getUid().equals(currentListing.getSellerId())) {
             MenuInflater inflater = getMenuInflater();
             inflater.inflate(R.menu.detail_menu, menu);
         }
@@ -108,42 +149,20 @@ public class ListingDetailActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    // ================== HÀM NÀY ĐÃ ĐƯỢC SỬA LẠI ==================
-    private void initViews() {
-        viewPagerImageSlider = findViewById(R.id.viewPagerImageSlider);
-        textViewTitleDetail = findViewById(R.id.textViewTitleDetail);
-        textViewPriceDetail = findViewById(R.id.textViewPriceDetail);
-        textViewTimestamp = findViewById(R.id.textViewTimestamp);
-        textViewDescriptionDetail = findViewById(R.id.textViewDescriptionDetail);
-        textViewSellerName = findViewById(R.id.textViewSellerName);
-        imageViewSeller = findViewById(R.id.imageViewSeller);
-        sellerInfoLayout = findViewById(R.id.sellerInfoLayout);
-
-        // Các nút trong thanh action dưới cùng
-        btnSaveListing = findViewById(R.id.btnSaveListing);
-        btnMakeOffer = findViewById(R.id.btnMakeOffer);
-        btnBuyNow = findViewById(R.id.btnBuyNow);
-        btnPayNow = findViewById(R.id.btnPayNow);
-
-        // Gán sự kiện OnClickListener
-        btnSaveListing.setOnClickListener(v -> toggleSaveListing());
-        btnMakeOffer.setOnClickListener(v -> showMakeOfferDialog());
-        btnBuyNow.setOnClickListener(v -> processBuyNow());
-        btnPayNow.setOnClickListener(v -> openPaymentActivity());
-        sellerInfoLayout.setOnClickListener(v -> {
-            if (currentListing != null && currentListing.getSellerId() != null) {
-                Intent intent = new Intent(this, ProfileViewActivity.class);
-                intent.putExtra("USER_ID", currentListing.getSellerId());
-                startActivity(intent);
-            }
-        });
+    private void startChat() {
+        if (!isDataLoaded || currentUser == null) {
+            Toast.makeText(this, "Dữ liệu chưa sẵn sàng, vui lòng thử lại.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(this, ChatActivity.class);
+        intent.putExtra("receiver_id", currentListing.getSellerId());
+        intent.putExtra("receiver_name", currentListing.getSellerName());
+        startActivity(intent);
     }
-    // =============================================================
 
     private void incrementViewCount() {
         if (listingId != null) {
-            DocumentReference listingRef = db.collection("listings").document(listingId);
-            listingRef.update("views", FieldValue.increment(1));
+            db.collection("listings").document(listingId).update("views", FieldValue.increment(1));
         }
     }
 
@@ -164,10 +183,15 @@ public class ListingDetailActivity extends AppCompatActivity {
     private void attachListingListener() {
         listingListener = db.collection("listings").document(listingId)
                 .addSnapshotListener((snapshot, error) -> {
-                    if (error != null) { return; }
+                    if (error != null) {
+                        Log.w(TAG, "Listen failed.", error);
+                        return;
+                    }
                     if (snapshot != null && snapshot.exists()) {
                         currentListing = snapshot.toObject(DataModels.Listing.class);
                         if (currentListing != null) {
+                            isDataLoaded = true;
+                            setBottomActionsEnabled(true);
                             updateUI(currentListing);
                             invalidateOptionsMenu();
                         }
@@ -181,6 +205,8 @@ public class ListingDetailActivity extends AppCompatActivity {
     private void updateUI(DataModels.Listing listing) {
         if (isDestroyed()) return;
 
+        bottomActionLayout.setVisibility(View.VISIBLE);
+
         if (listing.getImageUrls() != null && !listing.getImageUrls().isEmpty()) {
             imageSliderAdapter = new ImageSliderAdapter(this, listing.getImageUrls());
             viewPagerImageSlider.setAdapter(imageSliderAdapter);
@@ -192,81 +218,59 @@ public class ListingDetailActivity extends AppCompatActivity {
         if (listing.getCreatedAt() != null && listing.getLocationName() != null) {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm, dd/MM/yyyy", Locale.getDefault());
             String formattedDate = sdf.format(listing.getCreatedAt());
-            String timestampText = "Đăng lúc " + formattedDate + " tại " + listing.getLocationName();
-            textViewTimestamp.setText(timestampText);
+            textViewTimestamp.setText(String.format("Đăng lúc %s tại %s", formattedDate, listing.getLocationName()));
         }
-        textViewSellerName.setText(listing.getSellerName());
+
+        // Kiểm tra sellerName trước khi setText
+        if (listing.getSellerName() != null && !listing.getSellerName().isEmpty()) {
+            textViewSellerName.setText(listing.getSellerName());
+        } else {
+            textViewSellerName.setText("Người bán ẩn danh"); // Hoặc một giá trị mặc định khác
+        }
+
         if (listing.getSellerPhotoUrl() != null && !listing.getSellerPhotoUrl().isEmpty()) {
             Glide.with(this).load(listing.getSellerPhotoUrl()).placeholder(R.drawable.ic_profile_placeholder).into(imageViewSeller);
+        } else {
+            imageViewSeller.setImageResource(R.drawable.ic_profile_placeholder);
         }
 
         boolean isSold = "sold".equals(listing.getStatus());
         boolean isOwner = currentUser != null && currentUser.getUid().equals(listing.getSellerId());
         boolean isTheBuyer = isSold && currentUser != null && currentUser.getUid().equals(listing.getBuyerId());
 
-        if (isOwner) {
-            btnSaveListing.setVisibility(View.GONE);
-            btnMakeOffer.setVisibility(View.GONE);
-            btnBuyNow.setVisibility(View.GONE);
-            btnPayNow.setVisibility(View.GONE);
-        } else if (isTheBuyer) {
-            btnSaveListing.setVisibility(View.GONE);
-            btnMakeOffer.setVisibility(View.GONE);
-            btnBuyNow.setVisibility(View.GONE);
-            btnPayNow.setVisibility(View.VISIBLE);
-        } else if (isSold) {
-            btnSaveListing.setVisibility(View.VISIBLE);
-            btnMakeOffer.setVisibility(View.GONE);
-            btnBuyNow.setVisibility(View.GONE);
-            btnPayNow.setVisibility(View.GONE);
-        } else {
-            btnSaveListing.setVisibility(View.VISIBLE);
-            btnMakeOffer.setVisibility(View.VISIBLE);
-            btnBuyNow.setVisibility(View.VISIBLE);
-            btnPayNow.setVisibility(View.GONE);
-        }
+        btnPayNow.setVisibility(isTheBuyer ? View.VISIBLE : View.GONE);
+        btnBuyNow.setVisibility(!isOwner && !isSold ? View.VISIBLE : View.GONE);
+        btnMakeOffer.setVisibility(!isOwner && !isSold ? View.VISIBLE : View.GONE);
+        btnStartChat.setVisibility(!isOwner ? View.VISIBLE : View.GONE);
+        btnSaveListing.setVisibility(!isOwner ? View.VISIBLE : View.GONE);
 
-        checkIsSaved();
+        if (!isOwner) {
+            checkIsSaved();
+        }
     }
 
     private void processBuyNow() {
-        if (currentUser == null) {
-            Toast.makeText(this, "Vui lòng đăng nhập để mua hàng", Toast.LENGTH_SHORT).show();
+        if (!isDataLoaded || currentUser == null) {
+            Toast.makeText(this, "Vui lòng đợi tải xong dữ liệu.", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (currentListing == null) return;
-
         new AlertDialog.Builder(this)
                 .setTitle("Xác nhận mua ngay")
                 .setMessage("Bạn có chắc chắn muốn mua sản phẩm '" + currentListing.getTitle() + "' với giá " + NumberFormat.getCurrencyInstance(new Locale("vi", "VN")).format(currentListing.getPrice()) + "?")
                 .setPositiveButton("Đồng ý", (dialog, which) -> {
-                    // Hiển thị một ProgressBar hoặc vô hiệu hóa nút để người dùng biết đang xử lý
-                    // (Phần này bạn có thể tự thêm để UI đẹp hơn)
-
                     WriteBatch batch = db.batch();
-
                     DocumentReference listingRef = db.collection("listings").document(listingId);
                     batch.update(listingRef, "status", "sold", "buyerId", currentUser.getUid());
-
                     DocumentReference sellerRef = db.collection("users").document(currentListing.getSellerId());
                     DocumentReference buyerRef = db.collection("users").document(currentUser.getUid());
                     batch.update(sellerRef, "totalTransactions", FieldValue.increment(1));
                     batch.update(buyerRef, "totalTransactions", FieldValue.increment(1));
-
-                    // ================== CẬP NHẬT Ở ĐÂY ==================
                     batch.commit().addOnSuccessListener(aVoid -> {
-                        // Sau khi ghi vào database thành công
                         Toast.makeText(this, "Giao dịch đã được ghi nhận! Chuẩn bị thanh toán...", Toast.LENGTH_SHORT).show();
-                        // Ngay lập tức mở màn hình thanh toán
                         openPaymentActivity();
-                        // Không cần làm gì thêm, vì khi quay lại, listener sẽ tự cập nhật UI
-                    }).addOnFailureListener(e -> {
-                        Toast.makeText(this, "Có lỗi xảy ra: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    });
-                    // ======================================================
+                    }).addOnFailureListener(e -> Toast.makeText(this, "Có lỗi xảy ra: " + e.getMessage(), Toast.LENGTH_SHORT).show());
                 })
-                .setNegativeButton("Hủy", null)
-                .show();
+                .setNegativeButton("Hủy", null).show();
     }
 
     private void openPaymentActivity() {
@@ -280,11 +284,7 @@ public class ListingDetailActivity extends AppCompatActivity {
     }
 
     private void showReportDialog() {
-        if (currentUser == null) {
-            Toast.makeText(this, "Bạn cần đăng nhập để thực hiện chức năng này", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
+        if (!isDataLoaded || currentUser == null) return;
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         LayoutInflater inflater = this.getLayoutInflater();
         View dialogView = inflater.inflate(R.layout.dialog_report, null);
@@ -303,15 +303,12 @@ public class ListingDetailActivity extends AppCompatActivity {
         });
         builder.setPositiveButton("Gửi báo cáo", (dialog, which) -> {
             int selectedId = radioGroup.getCheckedRadioButtonId();
-            if (selectedId == -1) {
-                Toast.makeText(this, "Vui lòng chọn lý do báo cáo", Toast.LENGTH_SHORT).show();
-                return;
-            }
+            if (selectedId == -1) { Toast.makeText(this, "Vui lòng chọn lý do báo cáo", Toast.LENGTH_SHORT).show(); return; }
             String reason = "";
-            if(selectedId == R.id.radioScam) reason = "Lừa đảo";
-            else if(selectedId == R.id.radioInappropriate) reason = "Nội dung không phù hợp";
-            else if(selectedId == R.id.radioSpam) reason = "Spam";
-            else if(selectedId == R.id.radioOther) reason = "Khác";
+            if (selectedId == R.id.radioScam) reason = "Lừa đảo";
+            else if (selectedId == R.id.radioInappropriate) reason = "Nội dung không phù hợp";
+            else if (selectedId == R.id.radioSpam) reason = "Spam";
+            else if (selectedId == R.id.radioOther) reason = "Khác";
             String comment = commentEditText.getText().toString().trim();
             submitReport(reason, comment);
         });
@@ -320,6 +317,7 @@ public class ListingDetailActivity extends AppCompatActivity {
     }
 
     private void submitReport(String reason, String comment) {
+        if (currentUser == null || currentListing == null) return;
         DataModels.Report report = new DataModels.Report();
         report.setReporterId(currentUser.getUid());
         report.setReportedListingId(listingId);
@@ -327,15 +325,12 @@ public class ListingDetailActivity extends AppCompatActivity {
         report.setReason(reason);
         report.setComment(comment);
         db.collection("reports").add(report)
-                .addOnSuccessListener(documentReference -> Toast.makeText(this, "Cảm ơn bạn đã gửi báo cáo. Chúng tôi sẽ xem xét.", Toast.LENGTH_LONG).show())
+                .addOnSuccessListener(documentReference -> Toast.makeText(this, "Cảm ơn bạn đã gửi báo cáo.", Toast.LENGTH_LONG).show())
                 .addOnFailureListener(e -> Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
+
     private void showMakeOfferDialog() {
-        if (currentUser == null) {
-            Toast.makeText(this, "Vui lòng đăng nhập để trả giá", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        if (currentListing == null) return;
+        if (!isDataLoaded || currentUser == null) return;
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         LayoutInflater inflater = this.getLayoutInflater();
         View dialogView = inflater.inflate(R.layout.dialog_make_offer, null);
@@ -353,34 +348,41 @@ public class ListingDetailActivity extends AppCompatActivity {
             long offerPrice = Long.parseLong(offerPriceStr);
             submitOffer(offerPrice);
         });
-        builder.setNegativeButton("Hủy", (dialog, which) -> dialog.dismiss());
-        AlertDialog dialog = builder.create();
-        dialog.show();
+        builder.setNegativeButton("Hủy", null).create().show();
     }
+
     private void submitOffer(long offerPrice) {
-        DataModels.Offer newOffer = new DataModels.Offer();
-        newOffer.setBuyerId(currentUser.getUid());
-        newOffer.setBuyerName(currentUser.getDisplayName());
-        newOffer.setOfferPrice(offerPrice);
-        newOffer.setStatus("pending");
-        DocumentReference listingRef = db.collection("listings").document(listingId);
-        listingRef.collection("offers")
-                .add(newOffer)
-                .addOnSuccessListener(documentReference -> {
-                    Toast.makeText(this, "Gửi trả giá thành công!", Toast.LENGTH_SHORT).show();
-                    listingRef.update("offersCount", FieldValue.increment(1));
-                })
-                .addOnFailureListener(e -> Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        if (currentUser == null || currentListing == null) return;
+        db.collection("users").document(currentUser.getUid()).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (!documentSnapshot.exists()) {
+                        Toast.makeText(this, "Lỗi không tìm thấy thông tin của bạn", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    String buyerName = documentSnapshot.getString("displayName");
+                    if (TextUtils.isEmpty(buyerName)) {
+                        buyerName = currentUser.getEmail(); // Dùng email làm phương án dự phòng
+                    }
+
+                    DataModels.Offer newOffer = new DataModels.Offer();
+                    newOffer.setBuyerId(currentUser.getUid());
+                    newOffer.setBuyerName(buyerName);
+                    newOffer.setOfferPrice(offerPrice);
+                    newOffer.setStatus("pending");
+
+                    DocumentReference listingRef = db.collection("listings").document(listingId);
+                    listingRef.collection("offers").add(newOffer)
+                            .addOnSuccessListener(docRef -> {
+                                Toast.makeText(this, "Gửi trả giá thành công!", Toast.LENGTH_SHORT).show();
+                                listingRef.update("offersCount", FieldValue.increment(1));
+                            })
+                            .addOnFailureListener(e -> Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                });
     }
 
     private void toggleSaveListing() {
-        if (currentUser == null) {
-            Toast.makeText(this, "Bạn cần đăng nhập để thực hiện chức năng này", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String userId = currentUser.getUid();
-        DocumentReference userRef = db.collection("users").document(userId);
-
+        if (!isDataLoaded || currentUser == null) return;
+        DocumentReference userRef = db.collection("users").document(currentUser.getUid());
         if (isSaved) {
             userRef.update("savedListings", FieldValue.arrayRemove(listingId));
         } else {
@@ -392,6 +394,7 @@ public class ListingDetailActivity extends AppCompatActivity {
         if (currentUser == null) return;
         db.collection("users").document(currentUser.getUid()).get()
                 .addOnSuccessListener(documentSnapshot -> {
+                    if (isDestroyed()) return;
                     if (documentSnapshot.exists()) {
                         List<String> savedListings = (List<String>) documentSnapshot.get("savedListings");
                         isSaved = savedListings != null && savedListings.contains(listingId);
@@ -403,10 +406,10 @@ public class ListingDetailActivity extends AppCompatActivity {
     private void updateSaveButtonUI() {
         if (isSaved) {
             btnSaveListing.setIconResource(R.drawable.ic_bookmark_filled_24);
-            btnSaveListing.setIconTint(ColorStateList.valueOf(getResources().getColor(R.color.colorPrimary, getTheme())));
+            btnSaveListing.setIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorPrimary)));
         } else {
             btnSaveListing.setIconResource(R.drawable.ic_bookmark_24);
-            btnSaveListing.setIconTint(ColorStateList.valueOf(getResources().getColor(android.R.color.darker_gray, getTheme())));
+            btnSaveListing.setIconTint(ColorStateList.valueOf(ContextCompat.getColor(this, android.R.color.darker_gray)));
         }
     }
 }

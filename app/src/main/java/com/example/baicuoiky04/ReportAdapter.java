@@ -16,10 +16,12 @@ import java.util.List;
 
 public class ReportAdapter extends RecyclerView.Adapter<ReportAdapter.ViewHolder> {
 
+    // Interface đã được cập nhật với đúng chữ ký phương thức
     public interface OnReportActionListener {
         void onViewContent(DataModels.Report report);
         void onSuspendUser(String userId);
-        void onUnsuspendUser(String userId); // Thêm hàm này
+        void onUnsuspendUser(String userId);
+        void onRemoveReview(DataModels.Report report, String reportId); // Chữ ký đã đúng
         void onDismissReport(String reportId);
     }
 
@@ -73,36 +75,53 @@ public class ReportAdapter extends RecyclerView.Adapter<ReportAdapter.ViewHolder
             textViewReason.setText("Lý do: " + report.getReason());
             textViewReporter.setText("Người báo cáo: " + report.getReporterId());
 
-            if (!TextUtils.isEmpty(report.getReportedListingId())) {
-                textViewReportedContent.setText("Báo cáo tin đăng: " + report.getReportedListingId());
-                btnSuspendUser.setVisibility(View.VISIBLE); // Chỉ hiện nút khóa khi có user ID
-            } else if (!TextUtils.isEmpty(report.getReportedUserId())) {
-                textViewReportedContent.setText("Báo cáo người dùng: " + report.getReportedUserId());
-                btnSuspendUser.setVisibility(View.VISIBLE);
-            } else {
-                textViewReportedContent.setText("Báo cáo không xác định");
-                btnSuspendUser.setVisibility(View.GONE); // Ẩn nút nếu không có user ID
-            }
-
             if (!TextUtils.isEmpty(report.getComment())) {
                 textViewComment.setVisibility(View.VISIBLE);
-                textViewComment.setText(report.getComment());
+                textViewComment.setText("Bình luận: " + report.getComment());
             } else {
                 textViewComment.setVisibility(View.GONE);
             }
 
-            // ================== CẬP NHẬT LOGIC NÚT KHÓA/MỞ KHÓA ==================
+            // ================== LOGIC ĐIỀU KHIỂN NÚT VÀ TEXT ĐÃ ĐƯỢC CẬP NHẬT ==================
             DataModels.User reportedUser = report.getReportedUserObject();
-            if (reportedUser != null && "suspended".equals(reportedUser.getAccountStatus())) {
-                btnSuspendUser.setText("Mở khóa");
-                btnSuspendUser.setTextColor(ContextCompat.getColor(context, R.color.status_available));
-                btnSuspendUser.setOnClickListener(v -> listener.onUnsuspendUser(report.getReportedUserId()));
-            } else {
-                btnSuspendUser.setText("Khóa User");
-                btnSuspendUser.setTextColor(ContextCompat.getColor(context, R.color.status_sold));
-                btnSuspendUser.setOnClickListener(v -> listener.onSuspendUser(report.getReportedUserId()));
+
+            // Trường hợp 1: Báo cáo một bài đánh giá (Review)
+            if (!TextUtils.isEmpty(report.getReportedReviewId())) {
+                textViewReportedContent.setText("Báo cáo đánh giá của user: " + report.getReportedUserId());
+                btnSuspendUser.setVisibility(View.VISIBLE);
+                btnSuspendUser.setText("Xóa Review");
+                btnSuspendUser.setTextColor(ContextCompat.getColor(context, R.color.status_sold)); // Màu đỏ
+                // Gọi đúng hàm listener với đúng tham số
+                btnSuspendUser.setOnClickListener(v -> listener.onRemoveReview(report, reportId));
             }
-            // ====================================================================
+            // Trường hợp 2: Báo cáo người dùng hoặc tin đăng (có thông tin user)
+            else if (reportedUser != null) {
+                btnSuspendUser.setVisibility(View.VISIBLE);
+
+                // Cập nhật text nội dung báo cáo
+                if (!TextUtils.isEmpty(report.getReportedListingId())) {
+                    textViewReportedContent.setText("Báo cáo tin đăng: " + report.getReportedListingId());
+                } else {
+                    textViewReportedContent.setText("Báo cáo người dùng: " + report.getReportedUserId());
+                }
+
+                // Logic khóa/mở khóa user
+                if ("suspended".equals(reportedUser.getAccountStatus())) {
+                    btnSuspendUser.setText("Mở khóa");
+                    btnSuspendUser.setTextColor(ContextCompat.getColor(context, R.color.status_available)); // Màu xanh
+                    btnSuspendUser.setOnClickListener(v -> listener.onUnsuspendUser(report.getReportedUserId()));
+                } else {
+                    btnSuspendUser.setText("Khóa User");
+                    btnSuspendUser.setTextColor(ContextCompat.getColor(context, R.color.status_sold)); // Màu đỏ
+                    btnSuspendUser.setOnClickListener(v -> listener.onSuspendUser(report.getReportedUserId()));
+                }
+            }
+            // Trường hợp 3: Không có thông tin để thực hiện hành động
+            else {
+                textViewReportedContent.setText("Báo cáo không xác định");
+                btnSuspendUser.setVisibility(View.GONE);
+            }
+            // ====================================================================================
 
             btnViewContent.setOnClickListener(v -> listener.onViewContent(report));
             btnDismiss.setOnClickListener(v -> listener.onDismissReport(reportId));

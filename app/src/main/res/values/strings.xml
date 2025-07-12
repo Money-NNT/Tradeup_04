@@ -18,7 +18,6 @@
     <string name="ng_nh_pp">Đăng nhập</string>
     <string name="qu_n_m_t_kh_uu">Quên mật khẩu?</string>
     <string name="ng_ky">Đăng ký</string>
-    <string name="default_web_client_id">AIzaSyD4q-rPmcuexuygXaOY4cOsq4fy54nJ5JY</string>
     <string name="kh_i_ph_c_m_t_kh_u">Khôi phục mật khẩu</string>
     <string name="nh_p_a_ch_email_ng_k_c_a_b_n_ch_ng_t_i_s_g_i_m_t_li_n_k_t_t_l_i_m_t_kh_u">Nhập địa chỉ email đã đăng ký của bạn. Chúng tôi sẽ gửi một liên kết để đặt lại mật khẩu.</string>
     <string name="emaillll">Email</string>
@@ -42,4 +41,7 @@
     <string name="l_u">Đã lưu</string>
     <string name="qu_n_l">Quản lý</string>
     <string name="h_s">Hồ sơ</string>
+    <string name="default_web_client_id">585638123502-vg146sfi6vn51pflpmkuu2mkuodujm92.apps.googleusercontent.com</string>
+
+
 </resources>

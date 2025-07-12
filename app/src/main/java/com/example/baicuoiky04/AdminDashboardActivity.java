@@ -70,6 +70,9 @@ public class AdminDashboardActivity extends AppCompatActivity {
     private void setupRecyclerView() {
         reportList = new ArrayList<>();
         reportIdList = new ArrayList<>();
+
+        // **QUAN TRỌNG**: Đảm bảo bạn đã cập nhật file ReportAdapter.java
+        // để gọi đúng các hàm listener này, đặc biệt là hàm onRemoveReview mới.
         adapter = new ReportAdapter(this, reportList, reportIdList, new ReportAdapter.OnReportActionListener() {
             @Override
             public void onViewContent(DataModels.Report report) {
@@ -82,11 +85,16 @@ public class AdminDashboardActivity extends AppCompatActivity {
                     intent.putExtra("USER_ID", report.getReportedUserId());
                     startActivity(intent);
                 }
+                // Nếu là báo cáo review, có thể xem profile của người viết review
+                else if (!TextUtils.isEmpty(report.getReportedReviewId())) {
+                    Intent intent = new Intent(AdminDashboardActivity.this, ProfileViewActivity.class);
+                    intent.putExtra("USER_ID", report.getReportedUserId());
+                    startActivity(intent);
+                }
             }
 
             @Override
             public void onSuspendUser(String userId) {
-                // Đổi tên hàm thành toggleSuspendUser để bao gồm cả khóa và mở khóa
                 toggleUserSuspension(userId, true);
             }
 
@@ -95,13 +103,37 @@ public class AdminDashboardActivity extends AppCompatActivity {
                 toggleUserSuspension(userId, false);
             }
 
+            // ================== HÀM MỚI ĐƯỢC IMPLEMENT ==================
+            // Chữ ký hàm có thể được điều chỉnh để truyền cả report và reportId cho tiện
+            @Override
+            public void onRemoveReview(DataModels.Report report, String reportId) {
+                // Hiển thị dialog xác nhận trước khi thực hiện hành động
+                new AlertDialog.Builder(AdminDashboardActivity.this)
+                        .setTitle("Xác nhận xóa Review")
+                        .setMessage("Bạn có chắc muốn ẩn/xóa đánh giá này? Review sẽ không còn hiển thị với người dùng.")
+                        .setPositiveButton("Xóa Review", (dialog, which) -> {
+                            // Cập nhật status của review thành 'removed_by_admin'
+                            db.collection("users").document(report.getReportedUserId()).collection("reviews")
+                                    .document(report.getReportedReviewId())
+                                    .update("status", "removed_by_admin")
+                                    .addOnSuccessListener(aVoid -> {
+                                        Toast.makeText(AdminDashboardActivity.this, "Đã xóa/ẩn review.", Toast.LENGTH_SHORT).show();
+                                        // Sau khi xóa review thành công, xóa luôn report này
+                                        onDismissReport(reportId);
+                                    })
+                                    .addOnFailureListener(e -> Toast.makeText(AdminDashboardActivity.this, "Lỗi khi xóa review: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                        })
+                        .setNegativeButton("Hủy", null)
+                        .show();
+            }
+            // =============================================================
 
             @Override
             public void onDismissReport(String reportId) {
                 db.collection("reports").document(reportId).delete()
                         .addOnSuccessListener(aVoid -> {
                             Toast.makeText(AdminDashboardActivity.this, "Đã bỏ qua báo cáo.", Toast.LENGTH_SHORT).show();
-                            loadReports();
+                            loadReports(); // Tải lại danh sách
                         });
             }
         });
@@ -111,6 +143,9 @@ public class AdminDashboardActivity extends AppCompatActivity {
 
     private void loadReports() {
         progressBar.setVisibility(View.VISIBLE);
+        textViewEmpty.setVisibility(View.GONE);
+        recyclerView.setVisibility(View.GONE);
+
         db.collection("reports").orderBy("createdAt", Query.Direction.DESCENDING).get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     if (queryDocumentSnapshots.isEmpty()) {
@@ -151,12 +186,18 @@ public class AdminDashboardActivity extends AppCompatActivity {
                             reportIdList.add(tempReportIdList.get(i));
                         }
                         progressBar.setVisibility(View.GONE);
-                        textViewEmpty.setVisibility(reportList.isEmpty() ? View.VISIBLE : View.GONE);
+                        if(reportList.isEmpty()) {
+                            textViewEmpty.setVisibility(View.VISIBLE);
+                        } else {
+                            textViewEmpty.setVisibility(View.GONE);
+                            recyclerView.setVisibility(View.VISIBLE);
+                        }
                         adapter.notifyDataSetChanged();
                     });
 
                 }).addOnFailureListener(e -> {
                     progressBar.setVisibility(View.GONE);
+                    textViewEmpty.setVisibility(View.VISIBLE);
                     Log.e(TAG, "Error loading reports", e);
                 });
     }
@@ -166,7 +207,7 @@ public class AdminDashboardActivity extends AppCompatActivity {
 
         String newStatus = suspend ? "suspended" : "active";
         String title = suspend ? "Xác nhận khóa tài khoản" : "Xác nhận mở khóa tài khoản";
-        String message = "Bạn có chắc muốn " + (suspend ? "khóa" : "mở khóa") + " tài khoản " + userId + "?";
+        String message = "Bạn có chắc muốn " + (suspend ? "khóa" : "mở khóa") + " tài khoản này?";
         String buttonText = suspend ? "Khóa" : "Mở khóa";
 
         new AlertDialog.Builder(AdminDashboardActivity.this)
@@ -176,7 +217,7 @@ public class AdminDashboardActivity extends AppCompatActivity {
                     db.collection("users").document(userId)
                             .update("accountStatus", newStatus)
                             .addOnSuccessListener(aVoid -> {
-                                Toast.makeText(AdminDashboardActivity.this, "Đã " + buttonText.toLowerCase() + " tài khoản " + userId, Toast.LENGTH_SHORT).show();
+                                Toast.makeText(AdminDashboardActivity.this, "Đã " + buttonText.toLowerCase() + " tài khoản.", Toast.LENGTH_SHORT).show();
                                 loadReports(); // Tải lại để cập nhật trạng thái nút
                             })
                             .addOnFailureListener(e -> Toast.makeText(AdminDashboardActivity.this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());

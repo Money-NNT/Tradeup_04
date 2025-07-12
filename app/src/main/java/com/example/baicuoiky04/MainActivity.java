@@ -7,18 +7,14 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentTransaction;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.gms.tasks.Task;
-import com.google.android.gms.tasks.Tasks;
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -29,11 +25,13 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity implements BottomNavigationView.OnItemSelectedListener {
+public class MainActivity extends AppCompatActivity implements BottomNavigationView.OnNavigationItemSelectedListener {
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
@@ -121,7 +119,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     private void setupListeners() {
         fakeSearchView.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, SearchActivity.class)));
         fabAddItem.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, AddListingActivity.class)));
-        bottomNavigationView.setOnItemSelectedListener(this);
+        bottomNavigationView.setOnNavigationItemSelectedListener(this);
         bottomNavigationView.setBackground(null);
     }
 
@@ -132,8 +130,8 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         if (itemId == R.id.nav_home) {
             showHomeContent();
             return true;
-        } else if (itemId == R.id.nav_saved) {
-            selectedFragment = new SavedListingsFragment();
+        } else if (itemId == R.id.nav_messages) {
+            selectedFragment = new ConversationsFragment();
         } else if (itemId == R.id.nav_manage) {
             selectedFragment = new ManageListingsFragment();
         } else if (itemId == R.id.nav_profile) {
@@ -157,6 +155,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         appBarLayout.setVisibility(View.VISIBLE);
         recyclerViewHome.setVisibility(View.VISIBLE);
         buildHomeFeed();
+        // Clear any existing fragments to prevent overlap
         getSupportFragmentManager().getFragments().forEach(fragment ->
                 getSupportFragmentManager().beginTransaction().remove(fragment).commit()
         );
@@ -175,7 +174,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
 
         allTasks.addOnSuccessListener(results -> {
             homeFeedItems.clear();
-            QuerySnapshot popularResult = results.get(0);
+            QuerySnapshot popularResult = (QuerySnapshot) results.get(0);
 
             if (!popularResult.isEmpty()) {
                 homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HEADER, "Phổ biến nhất"));
@@ -231,10 +230,24 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     @Override
     public void onBackPressed() {
         if (fragmentContainer.getVisibility() == View.VISIBLE) {
+            // If currently showing a fragment, return to home
             showHomeContent();
             bottomNavigationView.setSelectedItemId(R.id.nav_home);
         } else {
             super.onBackPressed();
         }
+    }
+
+    // <<< HÀM HELPER MỚI ĐÃ ĐƯỢC THÊM >>>
+    public void loadFragmentFromAnotherFragment(Fragment fragment) {
+        // Cập nhật UI để giống như khi chọn một tab mới
+        appBarLayout.setVisibility(View.GONE);
+        recyclerViewHome.setVisibility(View.GONE);
+        fragmentContainer.setVisibility(View.VISIBLE);
+        // Tải fragment mới
+        getSupportFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, fragment)
+                .addToBackStack(null) // Cho phép người dùng nhấn back để quay lại Profile
+                .commit();
     }
 }

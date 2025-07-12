@@ -48,6 +48,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.GeoPoint;
@@ -59,7 +60,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
 public class AddListingActivity extends AppCompatActivity implements ImagePreviewAdapter.OnImageRemoveListener {
@@ -100,7 +100,7 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
                     setLoading(true);
-                    uploadImagesToCloudinary();
+                    fetchUserDataAndUpload();
                 } else {
                     setLoading(false);
                 }
@@ -226,7 +226,7 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
             btnChooseImages.setText("Chọn ảnh sản phẩm (tối đa 10)");
         } else {
             recyclerViewSelectedImages.setVisibility(View.VISIBLE);
-            btnChooseImages.setText(newImageUris.size() + "/10 ảnh đã được chọn");
+            btnChooseImages.setText(String.format(Locale.US, "%d/10 ảnh đã được chọn", newImageUris.size()));
         }
         imagePreviewAdapter.notifyDataSetChanged();
     }
@@ -326,7 +326,35 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
         return true;
     }
 
-    private void uploadImagesToCloudinary() {
+    private void fetchUserDataAndUpload() {
+        if (currentUser == null) {
+            setLoading(false);
+            return;
+        }
+        db.collection("users").document(currentUser.getUid()).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        String sellerName = documentSnapshot.getString("displayName");
+                        String sellerPhotoUrl = documentSnapshot.getString("photoUrl");
+
+                        if (TextUtils.isEmpty(sellerName)) {
+                            Toast.makeText(this, "Vui lòng cập nhật tên của bạn trong hồ sơ trước.", Toast.LENGTH_LONG).show();
+                            setLoading(false);
+                            return;
+                        }
+                        uploadImagesToCloudinary(sellerName, sellerPhotoUrl);
+                    } else {
+                        Toast.makeText(this, "Lỗi: Không tìm thấy hồ sơ người dùng.", Toast.LENGTH_SHORT).show();
+                        setLoading(false);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Lỗi khi lấy thông tin người dùng.", Toast.LENGTH_SHORT).show();
+                    setLoading(false);
+                });
+    }
+
+    private void uploadImagesToCloudinary(final String sellerName, final String sellerPhotoUrl) {
         final List<String> uploadedImageUrls = Collections.synchronizedList(new ArrayList<>());
         final CountDownLatch latch = new CountDownLatch(newImageUris.size());
 
@@ -353,7 +381,7 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
                 latch.await();
                 runOnUiThread(() -> {
                     if (uploadedImageUrls.size() == newImageUris.size()) {
-                        saveListingToFirestore(uploadedImageUrls);
+                        saveListingToFirestore(sellerName, sellerPhotoUrl, uploadedImageUrls);
                     } else {
                         Toast.makeText(this, "Có lỗi xảy ra khi tải ảnh lên.", Toast.LENGTH_SHORT).show();
                         setLoading(false);
@@ -366,13 +394,20 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
         }).start();
     }
 
-    private void saveListingToFirestore(List<String> imageUrls) {
+    private void saveListingToFirestore(String sellerName, String sellerPhotoUrl, List<String> imageUrls) {
         String listingId = db.collection("listings").document().getId();
         DataModels.Listing newListing = new DataModels.Listing();
         newListing.setListingId(listingId);
         newListing.setSellerId(currentUser.getUid());
-        newListing.setSellerName(currentUser.getDisplayName());
-        newListing.setSellerPhotoUrl(currentUser.getPhotoUrl() != null ? currentUser.getPhotoUrl().toString() : "");
+
+        if (TextUtils.isEmpty(sellerName)) {
+            Log.e(TAG, "FATAL: sellerName is null even after fetching! Using email as fallback.");
+            newListing.setSellerName(currentUser.getEmail());
+        } else {
+            newListing.setSellerName(sellerName);
+        }
+        newListing.setSellerPhotoUrl(sellerPhotoUrl);
+
         newListing.setTitle(editTextTitle.getText().toString().trim());
         newListing.setDescription(editTextDescription.getText().toString().trim());
         newListing.setPrice(Long.parseLong(editTextPrice.getText().toString()));

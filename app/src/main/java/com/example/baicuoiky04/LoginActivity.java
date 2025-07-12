@@ -1,5 +1,3 @@
-// Dán toàn bộ code này để thay thế file LoginActivity.java cũ
-
 package com.example.baicuoiky04;
 
 import android.content.Intent;
@@ -7,7 +5,6 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -29,9 +26,6 @@ import com.google.firebase.auth.GoogleAuthProvider;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
 public class LoginActivity extends AppCompatActivity {
 
     private static final String TAG = "LoginActivity";
@@ -44,7 +38,6 @@ public class LoginActivity extends AppCompatActivity {
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private GoogleSignInClient mGoogleSignInClient;
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +54,8 @@ public class LoginActivity extends AppCompatActivity {
         textViewRegisterLink = findViewById(R.id.textViewRegisterLink);
         textViewForgotPassword = findViewById(R.id.textViewForgotPassword);
 
+        // Cấu hình Google Sign-In
+        // Dòng .requestIdToken rất quan trọng để xác thực với Firebase
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
@@ -102,13 +97,11 @@ public class LoginActivity extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         FirebaseUser user = mAuth.getCurrentUser();
                         if (user != null) {
-                            // Kiểm tra email xác thực trước
                             if (!user.isEmailVerified()) {
                                 mAuth.signOut();
                                 Toast.makeText(LoginActivity.this, "Vui lòng xác thực email trước khi đăng nhập.", Toast.LENGTH_LONG).show();
                                 return;
                             }
-                            // Sau đó kiểm tra trạng thái tài khoản
                             checkAccountStatusAndProceed(user);
                         }
                     } else {
@@ -129,8 +122,10 @@ public class LoginActivity extends AppCompatActivity {
             Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
             try {
                 GoogleSignInAccount account = task.getResult(ApiException.class);
+                Log.d(TAG, "firebaseAuthWithGoogle:" + account.getId());
                 firebaseAuthWithGoogle(account.getIdToken());
             } catch (ApiException e) {
+                Log.w(TAG, "Google sign in failed", e);
                 Toast.makeText(this, "Google Sign-In thất bại. Mã lỗi: " + e.getStatusCode(), Toast.LENGTH_SHORT).show();
             }
         }
@@ -139,10 +134,9 @@ public class LoginActivity extends AppCompatActivity {
     private void firebaseAuthWithGoogle(String idToken) {
         AuthCredential credential = GoogleAuthProvider.getCredential(idToken, null);
         mAuth.signInWithCredential(credential)
-                .addOnCompleteListener(task -> {
+                .addOnCompleteListener(this, task -> {
                     if (task.isSuccessful()) {
                         FirebaseUser user = mAuth.getCurrentUser();
-                        // Dù là user mới hay cũ, đều phải qua bước kiểm tra trạng thái
                         checkAccountStatusAndProceed(user);
                     } else {
                         Toast.makeText(LoginActivity.this, "Xác thực Firebase thất bại.", Toast.LENGTH_SHORT).show();
@@ -150,46 +144,39 @@ public class LoginActivity extends AppCompatActivity {
                 });
     }
 
-    // ================== HÀM TRUNG TÂM MỚI ==================
     private void checkAccountStatusAndProceed(FirebaseUser user) {
         if (user == null) return;
-
         db.collection("users").document(user.getUid()).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
                         DocumentSnapshot document = task.getResult();
                         if (document.exists()) {
-                            // User đã tồn tại trong Firestore, kiểm tra trạng thái
                             DataModels.User userData = document.toObject(DataModels.User.class);
                             if (userData != null && "suspended".equals(userData.getAccountStatus())) {
-                                // TÀI KHOẢN BỊ KHÓA
-                                mAuth.signOut(); // Đăng xuất khỏi Firebase Auth
-                                Toast.makeText(this, "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.", Toast.LENGTH_LONG).show();
+                                mAuth.signOut();
+                                Toast.makeText(this, "Tài khoản của bạn đã bị khóa.", Toast.LENGTH_LONG).show();
                             } else {
-                                // Tài khoản hợp lệ, vào app
                                 navigateToMain();
                             }
                         } else {
-                            // User chưa có trong Firestore (đăng nhập Google lần đầu)
-                            // Tạo mới và cho vào app
                             createNewUserInFirestore(user);
                         }
                     } else {
-                        // Lỗi khi lấy dữ liệu, không cho đăng nhập
                         mAuth.signOut();
                         Toast.makeText(this, "Lỗi khi kiểm tra thông tin tài khoản.", Toast.LENGTH_SHORT).show();
                     }
                 });
     }
-    // =========================================================
 
     private void createNewUserInFirestore(FirebaseUser user) {
         DataModels.User newUser = new DataModels.User();
         newUser.setUid(user.getUid());
         newUser.setEmail(user.getEmail());
         newUser.setDisplayName(user.getDisplayName());
-        newUser.setPhotoUrl(user.getPhotoUrl() != null ? user.getPhotoUrl().toString().replace("s96-c", "s400-c") : "");
-        newUser.setAccountStatus("active"); // Trạng thái mặc định
+        if (user.getPhotoUrl() != null) {
+            newUser.setPhotoUrl(user.getPhotoUrl().toString());
+        }
+        newUser.setAccountStatus("active");
         newUser.setAverageRating(0);
         newUser.setTotalReviews(0);
         newUser.setTotalTransactions(0);
@@ -197,7 +184,7 @@ public class LoginActivity extends AppCompatActivity {
         db.collection("users").document(user.getUid()).set(newUser)
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "New user profile created in Firestore.");
-                    navigateToMain(); // Tạo xong thì vào app
+                    navigateToMain();
                 })
                 .addOnFailureListener(e -> {
                     mAuth.signOut();
@@ -211,11 +198,5 @@ public class LoginActivity extends AppCompatActivity {
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        executor.shutdown();
     }
 }

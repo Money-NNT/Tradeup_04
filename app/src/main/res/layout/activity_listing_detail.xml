@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     tools:context=".ListingDetailActivity">
 
-    <!-- AppBarLayout bây giờ sẽ chứa CollapsingToolbarLayout -->
+    <!-- Phần AppBarLayout và NestedScrollView giữ nguyên -->
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/app_bar"
         android:layout_width="match_parent"
@@ -14,7 +14,6 @@
         android:fitsSystemWindows="true"
         android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar">
 
-        <!-- CollapsingToolbarLayout để tạo hiệu ứng trượt -->
         <com.google.android.material.appbar.CollapsingToolbarLayout
             android:id="@+id/collapsing_toolbar"
             android:layout_width="match_parent"
@@ -31,7 +30,6 @@
                 android:scaleType="centerCrop"
                 app:layout_collapseMode="parallax" />
 
-            <!-- Đây là Toolbar bị thiếu -->
             <androidx.appcompat.widget.Toolbar
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
@@ -40,16 +38,13 @@
                 app:popupTheme="@style/Theme.AppCompat.DayNight" />
 
         </com.google.android.material.appbar.CollapsingToolbarLayout>
-
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- NestedScrollView và LinearLayout ở dưới giữ nguyên -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <!-- Toàn bộ LinearLayout chứa thông tin chi tiết của bạn nằm ở đây -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -60,9 +55,9 @@
                 android:id="@+id/textViewTitleDetail"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:textColor="@color/black"
                 android:textSize="22sp"
                 android:textStyle="bold"
-                android:textColor="@color/black"
                 tools:text="Tai nghe Sony WH-1000XM4 cũ, còn bảo hành" />
 
             <TextView
@@ -86,33 +81,33 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="@color/light_gray"
                 android:layout_marginTop="16dp"
-                android:layout_marginBottom="16dp"/>
+                android:layout_marginBottom="16dp"
+                android:background="@color/light_gray" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Mô tả chi tiết"
+                android:textColor="@color/black"
                 android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/black"/>
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/textViewDescriptionDetail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:textSize="16sp"
                 android:lineSpacingExtra="4dp"
-                tools:text="Do lên đời nên mình bán lại tai nghe Sony WH-1000XM4 màu đen. Tình trạng 98%, fullbox, còn bảo hành chính hãng 6 tháng."/>
+                android:textSize="16sp"
+                tools:text="Do lên đời nên mình bán lại tai nghe Sony WH-1000XM4 màu đen. Tình trạng 98%, fullbox, còn bảo hành chính hãng 6 tháng." />
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="@color/light_gray"
                 android:layout_marginTop="16dp"
-                android:layout_marginBottom="16dp"/>
+                android:layout_marginBottom="16dp"
+                android:background="@color/light_gray" />
 
             <RelativeLayout
                 android:id="@+id/sellerInfoLayout"
@@ -126,29 +121,29 @@
                     android:layout_width="60dp"
                     android:layout_height="60dp"
                     android:layout_marginEnd="16dp"
-                    tools:src="@tools:sample/avatars"/>
+                    tools:src="@tools:sample/avatars" />
 
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_toEndOf="@id/imageViewSeller"
                     android:layout_centerVertical="true"
+                    android:layout_toEndOf="@id/imageViewSeller"
                     android:orientation="vertical">
 
                     <TextView
                         android:id="@+id/textViewSellerName"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textStyle="bold"
                         android:textColor="@color/black"
-                        tools:text="An Nguyễn"/>
+                        android:textStyle="bold"
+                        tools:text="An Nguyễn" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Xem trang cá nhân"
                         android:textColor="@color/colorPrimary"
-                        android:textSize="12sp"/>
+                        android:textSize="12sp" />
 
                 </LinearLayout>
             </RelativeLayout>
@@ -156,57 +151,70 @@
 
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Thanh action ở dưới cùng giữ nguyên -->
-    <!-- Trong file activity_listing_detail.xml -->
-    <!-- Tìm đến LinearLayout ở cuối file và thay thế nó bằng code này -->
-
+    <!-- ================== THANH HÀNH ĐỘNG ĐÃ ĐƯỢC CẬP NHẬT CHÍNH XÁC ================== -->
+    <!-- ================== DÁN ĐỂ THAY THẾ CHO LINEARLAYOUT Ở CUỐI CÙNG ================== -->
     <LinearLayout
+        android:id="@+id/bottom_action_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
         android:layout_gravity="bottom"
-        android:padding="8dp"
-        android:background="@color/white">
+        android:background="@color/white"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
 
+        <!-- Nút Lưu (chỉ có icon) -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSaveListing"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            style="@style/Widget.Material3.Button.IconButton.Outlined"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:icon="@drawable/ic_bookmark_24"/>
+            app:icon="@drawable/ic_bookmark_24"
+            app:iconPadding="0dp"
+            app:strokeWidth="1dp" />
 
-        <!-- NÚT "TRẢ GIÁ" MỚI -->
+        <!-- Nút Nhắn tin (chỉ có chữ, không viền) -->
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnMakeOffer"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:id="@+id/btnStartChat"
+            style="@style/Widget.Material3.Button.TextButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="Trả giá"
-            android:padding="12dp"/>
+            android:text="Nhắn tin"
+            android:textColor="@color/black" />
 
-        <!-- NÚT "MUA NGAY" MỚI -->
+        <!-- Nút Trả giá (chỉ có chữ, không viền) -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMakeOffer"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Trả giá"
+            android:textColor="@color/black" />
+
+        <!-- Nút Mua ngay (có nền màu, nổi bật) -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnBuyNow"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:layout_marginStart="8dp"
+            android:layout_weight="1.2"
             android:text="Mua ngay"
-            android:padding="12dp"/>
+            app:backgroundTint="@color/colorPrimary" />
 
-        <!-- Nút thanh toán cho người đã mua (giữ nguyên) -->
+        <!-- Nút Thanh toán (vẫn ẩn) -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnPayNow"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:layout_marginStart="8dp"
-            android:text="Thanh toán ngay"
-            android:padding="12dp"
-            app:icon="@drawable/ic_payment_24"
-            android:visibility="gone"/>
+            android:layout_weight="1"
+            android:text="Thanh toán"
+            android:visibility="gone"
+            app:icon="@drawable/ic_payment_24" />
 
     </LinearLayout>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

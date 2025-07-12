@@ -22,7 +22,6 @@ public final class DataModels {
         private long totalTransactions;
         private List<String> savedListings;
         private String accountStatus;
-
         private String role;
         @ServerTimestamp
         private Date createdAt;
@@ -53,22 +52,24 @@ public final class DataModels {
         public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
         public Date getCreatedAt() { return createdAt; }
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
-
         public String getRole() { return role; }
         public void setRole(String role) { this.role = role; }
     }
+
     public static class Report {
         private String reporterId;
         private String reportedUserId;
         private String reportedListingId;
+        private String reportedReviewId;
         private String reason;
         private String comment;
         @ServerTimestamp
         private Date createdAt;
+        @Exclude
+        private User reportedUserObject;
 
         public Report() {}
 
-        // Dùng IDE để tự sinh Getters và Setters (Alt + Insert)
         public String getReporterId() { return reporterId; }
         public void setReporterId(String reporterId) { this.reporterId = reporterId; }
         public String getReportedUserId() { return reportedUserId; }
@@ -81,15 +82,13 @@ public final class DataModels {
         public void setComment(String comment) { this.comment = comment; }
         public Date getCreatedAt() { return createdAt; }
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
-
-        @Exclude // Quan trọng: Để không lưu trường này vào document Report trên Firestore
-        private User reportedUserObject;
-
-        // Thêm getter/setter
+        public String getReportedReviewId() { return reportedReviewId; }
+        public void setReportedReviewId(String reportedReviewId) { this.reportedReviewId = reportedReviewId; }
         @Exclude
         public User getReportedUserObject() { return reportedUserObject; }
         public void setReportedUserObject(User reportedUserObject) { this.reportedUserObject = reportedUserObject; }
     }
+
     public static class Listing {
         private String listingId;
         private String sellerId;
@@ -113,7 +112,6 @@ public final class DataModels {
         private Date createdAt;
         @ServerTimestamp
         private Date lastUpdatedAt;
-
         @Exclude
         private float distanceToUser = -1;
 
@@ -159,13 +157,14 @@ public final class DataModels {
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
         public Date getLastUpdatedAt() { return lastUpdatedAt; }
         public void setLastUpdatedAt(Date lastUpdatedAt) { this.lastUpdatedAt = lastUpdatedAt; }
-
         @Exclude
         public float getDistanceToUser() { return distanceToUser; }
         public void setDistanceToUser(float distanceToUser) { this.distanceToUser = distanceToUser; }
     }
 
     public static class Review {
+        @Exclude
+        private String id;
         private String listingId;
         private String reviewerId;
         private String reviewerName;
@@ -174,6 +173,7 @@ public final class DataModels {
         private String comment;
         @ServerTimestamp
         private Date createdAt;
+        private String status = "visible";
 
         public Review() {}
 
@@ -191,6 +191,11 @@ public final class DataModels {
         public void setComment(String comment) { this.comment = comment; }
         public Date getCreatedAt() { return createdAt; }
         public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+        @Exclude
+        public String getId() { return id; }
+        public void setId(String id) { this.id = id; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
     }
 
     public static class Offer {
@@ -225,20 +230,9 @@ public final class DataModels {
         public List<Listing> listings;
         public Listing singleListing;
 
-        public HomeFeedItem(int type, String headerTitle) {
-            this.type = type;
-            this.headerTitle = headerTitle;
-        }
-
-        public HomeFeedItem(int type, List<Listing> listings) {
-            this.type = type;
-            this.listings = listings;
-        }
-
-        public HomeFeedItem(int type, Listing listing) {
-            this.type = type;
-            this.singleListing = listing;
-        }
+        public HomeFeedItem(int type, String headerTitle) { this.type = type; this.headerTitle = headerTitle; }
+        public HomeFeedItem(int type, List<Listing> listings) { this.type = type; this.listings = listings; }
+        public HomeFeedItem(int type, Listing listing) { this.type = type; this.singleListing = listing; }
     }
 
     public static class OfferWithListing {
@@ -256,4 +250,64 @@ public final class DataModels {
         public Listing getListing() { return listing; }
         public String getOfferId() { return offerId; }
     }
+
+    // ================== CÁC CLASS MỚI CHO CHỨC NĂNG CHAT ==================
+    public static class Chat {
+        private List<String> participants;
+        private String lastMessage;
+        @ServerTimestamp
+        private Date lastMessageTimestamp;
+        private String user1Id;
+        private String user1Name;
+        private String user1Photo;
+        private String user2Id;
+        private String user2Name;
+        private String user2Photo;
+
+        public Chat() {}
+
+        public List<String> getParticipants() { return participants; }
+        public void setParticipants(List<String> participants) { this.participants = participants; }
+        public String getLastMessage() { return lastMessage; }
+        public void setLastMessage(String lastMessage) { this.lastMessage = lastMessage; }
+        public Date getLastMessageTimestamp() { return lastMessageTimestamp; }
+        public void setLastMessageTimestamp(Date lastMessageTimestamp) { this.lastMessageTimestamp = lastMessageTimestamp; }
+        public String getUser1Id() { return user1Id; }
+        public void setUser1Id(String user1Id) { this.user1Id = user1Id; }
+        public String getUser1Name() { return user1Name; }
+        public void setUser1Name(String user1Name) { this.user1Name = user1Name; }
+        public String getUser1Photo() { return user1Photo; }
+        public void setUser1Photo(String user1Photo) { this.user1Photo = user1Photo; }
+        public String getUser2Id() { return user2Id; }
+        public void setUser2Id(String user2Id) { this.user2Id = user2Id; }
+        public String getUser2Name() { return user2Name; }
+        public void setUser2Name(String user2Name) { this.user2Name = user2Name; }
+        public String getUser2Photo() { return user2Photo; }
+        public void setUser2Photo(String user2Photo) { this.user2Photo = user2Photo; }
+    }
+
+    public static class Message {
+        private String senderId;
+        private String text;
+        private String imageUrl;
+        @ServerTimestamp
+        private Date timestamp;
+
+        public Message() {}
+
+        public Message(String senderId, String text) {
+            this.senderId = senderId;
+            this.text = text;
+        }
+
+        public String getSenderId() { return senderId; }
+        public void setSenderId(String senderId) { this.senderId = senderId; }
+        public String getText() { return text; }
+        public void setText(String text) { this.text = text; }
+        public String getImageUrl() { return imageUrl; }
+        public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+        public Date getTimestamp() { return timestamp; }
+        public void setTimestamp(Date timestamp) { this.timestamp = timestamp; }
+    }
+    // =======================================================================
 }

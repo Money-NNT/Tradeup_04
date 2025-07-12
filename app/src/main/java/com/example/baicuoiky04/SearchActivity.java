@@ -21,7 +21,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Query;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +29,7 @@ import java.util.Locale;
 public class SearchActivity extends AppCompatActivity implements FilterBottomSheetFragment.FilterListener {
 
     private static final String TAG = "SearchActivity";
-    private static final long DEBOUNCE_DELAY_MS = 300; // Tăng lên 300ms để trải nghiệm tốt hơn
+    private static final long DEBOUNCE_DELAY_MS = 300;
 
     private SearchView searchView;
     private Button btnFilter;
@@ -42,11 +41,10 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
     private List<DataModels.Listing> resultList;
     private FirebaseFirestore db;
 
-    // --- CÁC BIẾN MỚI CHO DEBOUNCING ---
     private final Handler searchHandler = new Handler(Looper.getMainLooper());
     private Runnable searchRunnable;
-    // ------------------------------------
 
+    // Biến cho bộ lọc (đã loại bỏ các biến vị trí)
     private String currentKeyword = "";
     private String currentSortBy = "createdAt";
     private Query.Direction currentSortDirection = Query.Direction.DESCENDING;
@@ -54,6 +52,7 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
     private float currentMaxPrice = 50000000;
     private String currentCategory = "Tất cả";
     private String currentCondition = "Tất cả";
+    private float currentDistance = 100.0f; // Vẫn giữ biến này để giao tiếp với FilterBottomSheet
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,16 +95,14 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
         });
     }
 
-    // --- HÀM setupSearchView ĐƯỢC CẬP NHẬT HOÀN TOÀN ---
     private void setupSearchView() {
-        searchView.setIconified(false); // Mở rộng thanh tìm kiếm ngay từ đầu
-        searchView.requestFocus(); // Tự động focus để bàn phím hiện lên
+        searchView.setIconified(false);
+        searchView.requestFocus();
 
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String query) {
-                // Khi người dùng nhấn nút tìm kiếm trên bàn phím
-                searchHandler.removeCallbacks(searchRunnable); // Hủy bỏ các tìm kiếm đang chờ
+                searchHandler.removeCallbacks(searchRunnable);
                 performSearch(query);
                 hideKeyboard();
                 return true;
@@ -113,13 +110,8 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
 
             @Override
             public boolean onQueryTextChange(String newText) {
-                // Khi người dùng gõ từng chữ
-                searchHandler.removeCallbacks(searchRunnable); // Hủy bỏ tìm kiếm trước đó
-
-                // Tạo một tác vụ tìm kiếm mới
+                searchHandler.removeCallbacks(searchRunnable);
                 searchRunnable = () -> performSearch(newText);
-
-                // Đặt lịch để thực hiện tác vụ này sau DEBOUNCE_DELAY_MS
                 searchHandler.postDelayed(searchRunnable, DEBOUNCE_DELAY_MS);
                 return true;
             }
@@ -134,7 +126,7 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
                 currentMaxPrice,
                 currentCategory,
                 currentCondition,
-                100.0f // Tạm thời chưa dùng distance trong Search
+                currentDistance
         );
         filterSheet.setFilterListener(this);
         filterSheet.show(getSupportFragmentManager(), "FilterBottomSheetFragment");
@@ -148,6 +140,7 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
         this.currentMaxPrice = maxPrice;
         this.currentCategory = category;
         this.currentCondition = "Tất cả".equalsIgnoreCase(condition) ? "" : condition;
+        this.currentDistance = distance;
         performSearch(searchView.getQuery().toString());
     }
 
@@ -163,25 +156,17 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
 
         Query query = db.collection("listings").whereEqualTo("status", "available");
 
-        if (!currentKeyword.isEmpty()) {
-            query = query.whereArrayContains("tags", currentKeyword);
-        }
-        if (!"Tất cả".equals(currentCategory)) {
-            query = query.whereEqualTo("category", currentCategory);
-        }
-        if (currentCondition != null && !currentCondition.isEmpty()) {
-            query = query.whereEqualTo("condition", currentCondition);
-        }
-        if (currentMinPrice > 0) {
-            query = query.whereGreaterThanOrEqualTo("price", currentMinPrice);
-        }
-        if (currentMaxPrice < 50000000) {
-            query = query.whereLessThanOrEqualTo("price", currentMaxPrice);
-        }
+        if (!currentKeyword.isEmpty()) { query = query.whereArrayContains("tags", currentKeyword); }
+        if (!"Tất cả".equals(currentCategory)) { query = query.whereEqualTo("category", currentCategory); }
+        if (currentCondition != null && !currentCondition.isEmpty()) { query = query.whereEqualTo("condition", currentCondition); }
+        if (currentMinPrice > 0) { query = query.whereGreaterThanOrEqualTo("price", currentMinPrice); }
+        if (currentMaxPrice < 50000000) { query = query.whereLessThanOrEqualTo("price", currentMaxPrice); }
 
+        // Cần kiểm tra để tránh lỗi query của Firestore
         if (currentSortBy.equals("price")) {
             query = query.orderBy(currentSortBy, currentSortDirection);
         } else {
+            // Firestore yêu cầu nếu có lọc theo khoảng (range filter) như price, thì orderBy đầu tiên phải là trường đó.
             if (currentMinPrice > 0 || currentMaxPrice < 50000000) {
                 query = query.orderBy("price");
             }
@@ -189,22 +174,29 @@ public class SearchActivity extends AppCompatActivity implements FilterBottomShe
         }
 
         query.get().addOnSuccessListener(queryDocumentSnapshots -> {
-            progressBar.setVisibility(View.GONE);
-            resultList.clear();
-            if (queryDocumentSnapshots.isEmpty()) {
-                textViewPlaceholder.setVisibility(View.VISIBLE);
-                textViewPlaceholder.setText("Không tìm thấy kết quả nào");
-            } else {
-                recyclerViewResults.setVisibility(View.VISIBLE);
-                resultList.addAll(queryDocumentSnapshots.toObjects(DataModels.Listing.class));
-            }
-            adapter.notifyDataSetChanged();
-        }).addOnFailureListener(e -> {
-            progressBar.setVisibility(View.GONE);
+            updateUIWithResults(queryDocumentSnapshots.toObjects(DataModels.Listing.class));
+        }).addOnFailureListener(this::handleQueryFailure);
+    }
+
+    private void updateUIWithResults(List<DataModels.Listing> listings) {
+        progressBar.setVisibility(View.GONE);
+        resultList.clear();
+        if (listings.isEmpty()) {
             textViewPlaceholder.setVisibility(View.VISIBLE);
-            textViewPlaceholder.setText("Lỗi: " + e.getMessage());
-            Log.e(TAG, "Search query failed. Check Firestore Indexes.", e);
-        });
+            textViewPlaceholder.setText("Không tìm thấy kết quả nào");
+        } else {
+            recyclerViewResults.setVisibility(View.VISIBLE);
+            resultList.addAll(listings);
+        }
+        adapter.notifyDataSetChanged();
+    }
+
+    private void handleQueryFailure(Exception e) {
+        progressBar.setVisibility(View.GONE);
+        textViewPlaceholder.setVisibility(View.VISIBLE);
+        textViewPlaceholder.setText("Lỗi: " + e.getMessage());
+        Log.e(TAG, "Search query failed. Check Firestore Indexes.", e);
+        Toast.makeText(this, "Query lỗi. Vui lòng kiểm tra Logcat để lấy link tạo Index.", Toast.LENGTH_LONG).show();
     }
 
     private void hideKeyboard() {
