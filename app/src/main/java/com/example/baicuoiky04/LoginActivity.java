@@ -21,6 +21,7 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -54,8 +55,6 @@ public class LoginActivity extends AppCompatActivity {
         textViewRegisterLink = findViewById(R.id.textViewRegisterLink);
         textViewForgotPassword = findViewById(R.id.textViewForgotPassword);
 
-        // Cấu hình Google Sign-In
-        // Dòng .requestIdToken rất quan trọng để xác thực với Firebase
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
@@ -66,22 +65,41 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void setupListeners() {
+        // ============= LOGIC VÔ HIỆU HÓA NÚT BẮT ĐẦU TỪ ĐÂY =============
+
+        // 1. Ban đầu, vô hiệu hóa nút Đăng nhập
         buttonLogin.setEnabled(false);
-        TextWatcher textWatcher = new TextWatcher() {
+
+        // 2. Tạo một TextWatcher để lắng nghe sự thay đổi
+        TextWatcher loginTextWatcher = new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                // Không cần làm gì
+            }
+
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Mỗi khi người dùng gõ, kiểm tra lại cả hai ô
                 String emailInput = editTextEmail.getText().toString().trim();
                 String passwordInput = editTextPassword.getText().toString().trim();
+
+                // Chỉ bật nút khi cả hai ô đều không rỗng
                 buttonLogin.setEnabled(!emailInput.isEmpty() && !passwordInput.isEmpty());
             }
-            @Override
-            public void afterTextChanged(Editable s) {}
-        };
-        editTextEmail.addTextChangedListener(textWatcher);
-        editTextPassword.addTextChangedListener(textWatcher);
 
+            @Override
+            public void afterTextChanged(Editable s) {
+                // Không cần làm gì
+            }
+        };
+
+        // 3. Gán TextWatcher cho cả hai ô EditText
+        editTextEmail.addTextChangedListener(loginTextWatcher);
+        editTextPassword.addTextChangedListener(loginTextWatcher);
+
+        // ======================= KẾT THÚC LOGIC ========================
+
+        // Các listener cũ
         buttonLogin.setOnClickListener(v -> loginWithEmail());
         buttonGoogleSignIn.setOnClickListener(v -> signInWithGoogle());
         textViewRegisterLink.setOnClickListener(v -> startActivity(new Intent(LoginActivity.this, RegisterActivity.class)));
@@ -91,18 +109,15 @@ public class LoginActivity extends AppCompatActivity {
     private void loginWithEmail() {
         String email = editTextEmail.getText().toString().trim();
         String password = editTextPassword.getText().toString().trim();
-
         mAuth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
                         FirebaseUser user = mAuth.getCurrentUser();
-                        if (user != null) {
-                            if (!user.isEmailVerified()) {
-                                mAuth.signOut();
-                                Toast.makeText(LoginActivity.this, "Vui lòng xác thực email trước khi đăng nhập.", Toast.LENGTH_LONG).show();
-                                return;
-                            }
+                        if (user != null && user.isEmailVerified()) {
                             checkAccountStatusAndProceed(user);
+                        } else {
+                            mAuth.signOut();
+                            Toast.makeText(LoginActivity.this, "Vui lòng xác thực email trước.", Toast.LENGTH_LONG).show();
                         }
                     } else {
                         Toast.makeText(LoginActivity.this, "Đăng nhập thất bại: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
@@ -122,7 +137,6 @@ public class LoginActivity extends AppCompatActivity {
             Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
             try {
                 GoogleSignInAccount account = task.getResult(ApiException.class);
-                Log.d(TAG, "firebaseAuthWithGoogle:" + account.getId());
                 firebaseAuthWithGoogle(account.getIdToken());
             } catch (ApiException e) {
                 Log.w(TAG, "Google sign in failed", e);
@@ -139,7 +153,11 @@ public class LoginActivity extends AppCompatActivity {
                         FirebaseUser user = mAuth.getCurrentUser();
                         checkAccountStatusAndProceed(user);
                     } else {
-                        Toast.makeText(LoginActivity.this, "Xác thực Firebase thất bại.", Toast.LENGTH_SHORT).show();
+                        if (task.getException() instanceof FirebaseAuthUserCollisionException) {
+                            Toast.makeText(LoginActivity.this, "Email này đã được đăng ký bằng mật khẩu. Vui lòng đăng nhập bằng mật khẩu.", Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(LoginActivity.this, "Xác thực Firebase thất bại.", Toast.LENGTH_SHORT).show();
+                        }
                     }
                 });
     }

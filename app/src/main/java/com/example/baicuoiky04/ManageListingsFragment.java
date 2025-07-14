@@ -1,14 +1,12 @@
-// Dán toàn bộ code này để thay thế file ManageListingsFragment.java cũ
-
 package com.example.baicuoiky04;
 
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.PopupMenu; // Thêm import này nếu thiếu
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -23,7 +21,7 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Query;
 import java.util.ArrayList;
-import java.util.Arrays; // Thêm import này
+import java.util.Arrays;
 import java.util.List;
 
 public class ManageListingsFragment extends Fragment {
@@ -72,8 +70,8 @@ public class ManageListingsFragment extends Fragment {
             public void onDelete(DataModels.Listing listing) {
                 new AlertDialog.Builder(getContext())
                         .setTitle("Xác nhận xóa")
-                        .setMessage("Bạn có chắc chắn muốn xóa tin '" + listing.getTitle() + "' không?")
-                        .setPositiveButton("Xóa", (dialog, which) -> deleteListing(listing))
+                        .setMessage("Bạn có chắc chắn muốn xóa vĩnh viễn tin '" + listing.getTitle() + "' không? Hành động này không thể hoàn tác.")
+                        .setPositiveButton("Xóa vĩnh viễn", (dialog, which) -> deleteListing(listing))
                         .setNegativeButton("Hủy", null)
                         .show();
             }
@@ -82,7 +80,6 @@ public class ManageListingsFragment extends Fragment {
                 showChangeStatusDialog(listing);
             }
 
-            // ================== THÊM HÀM MỚI NÀY ==================
             @Override
             public void onArchive(DataModels.Listing listing) {
                 new AlertDialog.Builder(getContext())
@@ -92,43 +89,65 @@ public class ManageListingsFragment extends Fragment {
                         .setNegativeButton("Hủy", null)
                         .show();
             }
-            // ========================================================
         };
-        // Sửa hàm khởi tạo adapter
         adapter = new ManageListingAdapter(getContext(), myListings, listener);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerView.setAdapter(adapter);
     }
 
-    private void showChangeStatusDialog(DataModels.Listing listing) {
+    // ============= SỬA LẠI HOÀN TOÀN HÀM NÀY =============
+    private void showChangeStatusDialog(final DataModels.Listing listing) {
+        // Chỉ cho phép đổi các trạng thái này
         final String[] statuses = {"available", "paused", "sold"};
-        final String[] displayStatuses = {"Đang bán", "Tạm dừng", "Đã bán"};
+        final String[] displayStatuses = {"Đang bán", "Tạm dừng", "Đánh dấu là Đã bán"};
+
         new AlertDialog.Builder(getContext())
-                .setTitle("Chọn trạng thái mới")
+                .setTitle("Chọn trạng thái mới cho tin")
                 .setItems(displayStatuses, (dialog, which) -> {
                     String newStatus = statuses[which];
-                    // Nếu người dùng chọn "Đã bán", cần có thêm bước chọn người mua
+
+                    // Nếu người dùng chọn "Đã bán"
                     if ("sold".equals(newStatus)) {
-                        Toast.makeText(getContext(), "Vui lòng chấp nhận một trả giá để đánh dấu là 'Đã bán'.", Toast.LENGTH_LONG).show();
+                        // Hỏi thêm một lần nữa để xác nhận
+                        new AlertDialog.Builder(getContext())
+                                .setTitle("Xác nhận đã bán?")
+                                .setMessage("Hành động này sẽ ẩn tin đăng khỏi trang chủ và không thể bán lại. Bạn chắc chắn chứ?")
+                                .setPositiveButton("Xác nhận", (confirmDialog, confirmWhich) -> {
+                                    // Cập nhật status thành "sold" và buyerId là một giá trị đặc biệt
+                                    updateListingStatus(listing, "sold");
+                                })
+                                .setNegativeButton("Hủy", null)
+                                .show();
                     } else {
+                        // Nếu chọn các trạng thái khác ("available", "paused") thì cập nhật ngay
                         updateListingStatus(listing, newStatus);
                     }
                 })
                 .create().show();
     }
 
+    // ============= SỬA LẠI HÀM NÀY ĐỂ XỬ LÝ TRƯỜNG HỢP "SOLD" =============
     private void updateListingStatus(DataModels.Listing listing, String newStatus) {
-        db.collection("listings").document(listing.getListingId())
-                .update("status", newStatus)
-                .addOnSuccessListener(aVoid -> {
-                    String message = "Cập nhật trạng thái thành công!";
-                    if ("archived".equals(newStatus)) {
-                        message = "Đã lưu trữ tin đăng!";
-                    }
-                    Toast.makeText(getContext(), message, Toast.LENGTH_SHORT).show();
-                    loadMyListings();
-                })
-                .addOnFailureListener(e -> Toast.makeText(getContext(), "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        if ("sold".equals(newStatus)) {
+            // Khi bán thủ công, không có người mua cụ thể trên app
+            // Chúng ta có thể set buyerId là một chuỗi đặc biệt để nhận biết
+            db.collection("listings").document(listing.getListingId())
+                    .update("status", "sold", "buyerId", "sold_manually")
+                    .addOnSuccessListener(aVoid -> {
+                        Toast.makeText(getContext(), "Đã cập nhật trạng thái thành 'Đã bán'!", Toast.LENGTH_SHORT).show();
+                        loadMyListings();
+                    })
+                    .addOnFailureListener(e -> Toast.makeText(getContext(), "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        } else {
+            // Các trường hợp khác (available, paused, archived)
+            db.collection("listings").document(listing.getListingId())
+                    .update("status", newStatus)
+                    .addOnSuccessListener(aVoid -> {
+                        Toast.makeText(getContext(), "Cập nhật trạng thái thành công!", Toast.LENGTH_SHORT).show();
+                        loadMyListings();
+                    })
+                    .addOnFailureListener(e -> Toast.makeText(getContext(), "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        }
     }
 
     private void deleteListing(DataModels.Listing listing) {
@@ -145,13 +164,10 @@ public class ManageListingsFragment extends Fragment {
         progressBar.setVisibility(View.VISIBLE);
         textViewEmpty.setVisibility(View.GONE);
 
-        // ================== CẬP NHẬT CÂU QUERY Ở ĐÂY ==================
-        // Chỉ hiển thị các tin đang hoạt động hoặc đã bán, không hiển thị tin lưu trữ
         List<String> statusesToView = Arrays.asList("available", "paused", "sold");
-
         db.collection("listings")
                 .whereEqualTo("sellerId", currentUser.getUid())
-                .whereIn("status", statusesToView) // Chỉ lấy các tin có status này
+                .whereIn("status", statusesToView)
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
@@ -168,6 +184,5 @@ public class ManageListingsFragment extends Fragment {
                     progressBar.setVisibility(View.GONE);
                     Log.e(TAG, "Error loading listings", e);
                 });
-        // =============================================================
     }
 }

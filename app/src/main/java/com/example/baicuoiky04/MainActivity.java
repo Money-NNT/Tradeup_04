@@ -1,7 +1,11 @@
 package com.example.baicuoiky04;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -10,11 +14,16 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
 import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -25,16 +34,19 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
-import com.google.android.gms.tasks.Task;
-import com.google.android.gms.tasks.Tasks;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements BottomNavigationView.OnNavigationItemSelectedListener {
 
+    private static final String TAG = "MainActivity";
+
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
+    private FusedLocationProviderClient fusedLocationClient;
 
     private RecyclerView recyclerViewHome;
     private FrameLayout fragmentContainer;
@@ -49,6 +61,11 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     private DocumentSnapshot lastVisible;
     private boolean isLoading = false;
 
+    // Interface để xử lý callback sau khi lấy được vị trí
+    interface LocationCallback {
+        void onLocationFetched(Location location);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -56,6 +73,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
 
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
         checkUserStatus();
         initViews();
@@ -108,8 +126,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 super.onScrolled(recyclerView, dx, dy);
-                LinearLayoutManager linearLayoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
-                if (!isLoading && linearLayoutManager != null && linearLayoutManager.findLastCompletelyVisibleItemPosition() == homeFeedItems.size() - 1) {
+                if (!isLoading && layoutManager.findLastCompletelyVisibleItemPosition() == homeFeedItems.size() - 1) {
                     loadMoreAllProducts();
                 }
             }
@@ -155,7 +172,6 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         appBarLayout.setVisibility(View.VISIBLE);
         recyclerViewHome.setVisibility(View.VISIBLE);
         buildHomeFeed();
-        // Clear any existing fragments to prevent overlap
         getSupportFragmentManager().getFragments().forEach(fragment ->
                 getSupportFragmentManager().beginTransaction().remove(fragment).commit()
         );
@@ -164,49 +180,101 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     private void buildHomeFeed() {
         isLoading = true;
         progressBar.setVisibility(View.VISIBLE);
+        homeFeedItems.clear();
 
-        Task<QuerySnapshot> popularTask = db.collection("listings")
-                .whereEqualTo("status", "available")
-                .orderBy("views", Query.Direction.DESCENDING)
-                .limit(10).get();
+        fetchCurrentUserLocation(location -> {
+            Task<QuerySnapshot> popularTask = db.collection("listings")
+                    .whereEqualTo("status", "available")
+                    .orderBy("views", Query.Direction.DESCENDING)
+                    .limit(10).get();
 
-        Task<List<QuerySnapshot>> allTasks = Tasks.whenAllSuccess(popularTask);
+            Task<QuerySnapshot> nearbyTask = db.collection("listings")
+                    .whereEqualTo("status", "available")
+                    .orderBy("createdAt", Query.Direction.DESCENDING)
+                    .limit(50).get();
 
-        allTasks.addOnSuccessListener(results -> {
-            homeFeedItems.clear();
-            QuerySnapshot popularResult = (QuerySnapshot) results.get(0);
+            Tasks.whenAllSuccess(popularTask, nearbyTask).addOnSuccessListener(results -> {
+                homeFeedItems.clear();
 
-            if (!popularResult.isEmpty()) {
-                homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HEADER, "Phổ biến nhất"));
-                homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HORIZONTAL_LIST, popularResult.toObjects(DataModels.Listing.class)));
-            }
+                QuerySnapshot popularResult = (QuerySnapshot) results.get(0);
+                if (!popularResult.isEmpty()) {
+                    homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HEADER, "Phổ biến nhất"));
+                    homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HORIZONTAL_LIST, popularResult.toObjects(DataModels.Listing.class)));
+                }
 
-            homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HEADER, "Dành cho bạn"));
+                if (location != null) {
+                    QuerySnapshot nearbyResult = (QuerySnapshot) results.get(1);
+                    List<DataModels.Listing> nearbyListings = filterAndSortByDistance(nearbyResult.toObjects(DataModels.Listing.class), location);
+                    if (!nearbyListings.isEmpty()) {
+                        homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HEADER, "Gần bạn"));
+                        List<DataModels.Listing> topNearby = nearbyListings.subList(0, Math.min(10, nearbyListings.size()));
+                        homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HORIZONTAL_LIST, topNearby));
+                    }
+                }
 
-            homeFeedAdapter.notifyDataSetChanged();
-            progressBar.setVisibility(View.GONE);
+                homeFeedItems.add(new DataModels.HomeFeedItem(DataModels.HomeFeedItem.TYPE_HEADER, "Dành cho bạn"));
 
-            lastVisible = null;
-            loadMoreAllProducts();
+                homeFeedAdapter.notifyDataSetChanged();
+                progressBar.setVisibility(View.GONE);
 
-        }).addOnFailureListener(e -> {
-            progressBar.setVisibility(View.GONE);
-            isLoading = false;
+                lastVisible = null;
+                loadMoreAllProducts();
+
+            }).addOnFailureListener(e -> {
+                progressBar.setVisibility(View.GONE);
+                isLoading = false;
+                Log.e(TAG, "Error building home feed", e);
+            });
         });
+    }
+
+    private void fetchCurrentUserLocation(LocationCallback callback) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Log.d(TAG, "Location permission not granted. Cannot fetch nearby items.");
+            callback.onLocationFetched(null);
+            return;
+        }
+        fusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, location -> {
+                    if (location != null) {
+                        Log.d(TAG, "Current user location fetched for home feed.");
+                    } else {
+                        Log.d(TAG, "Could not fetch user location for home feed.");
+                    }
+                    callback.onLocationFetched(location);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to get location", e);
+                    callback.onLocationFetched(null);
+                });
+    }
+
+    private List<DataModels.Listing> filterAndSortByDistance(List<DataModels.Listing> listings, Location currentUserLocation) {
+        for (DataModels.Listing listing : listings) {
+            if (listing.getLocationGeoPoint() != null) {
+                Location itemLocation = new Location("");
+                itemLocation.setLatitude(listing.getLocationGeoPoint().getLatitude());
+                itemLocation.setLongitude(listing.getLocationGeoPoint().getLongitude());
+                float distance = currentUserLocation.distanceTo(itemLocation);
+                listing.setDistanceToUser(distance);
+            } else {
+                listing.setDistanceToUser(Float.MAX_VALUE);
+            }
+        }
+        Collections.sort(listings, Comparator.comparing(DataModels.Listing::getDistanceToUser));
+        return listings;
     }
 
     private void loadMoreAllProducts() {
         isLoading = true;
-
         Query allProductsQuery = db.collection("listings")
                 .whereEqualTo("status", "available")
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .limit(10);
-
         if (lastVisible != null) {
             allProductsQuery = allProductsQuery.startAfter(lastVisible);
         }
-
         allProductsQuery.get().addOnSuccessListener(snapshots -> {
             if (!snapshots.isEmpty()) {
                 lastVisible = snapshots.getDocuments().get(snapshots.size() - 1);
@@ -230,7 +298,6 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     @Override
     public void onBackPressed() {
         if (fragmentContainer.getVisibility() == View.VISIBLE) {
-            // If currently showing a fragment, return to home
             showHomeContent();
             bottomNavigationView.setSelectedItemId(R.id.nav_home);
         } else {
@@ -238,16 +305,13 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         }
     }
 
-    // <<< HÀM HELPER MỚI ĐÃ ĐƯỢC THÊM >>>
     public void loadFragmentFromAnotherFragment(Fragment fragment) {
-        // Cập nhật UI để giống như khi chọn một tab mới
         appBarLayout.setVisibility(View.GONE);
         recyclerViewHome.setVisibility(View.GONE);
         fragmentContainer.setVisibility(View.VISIBLE);
-        // Tải fragment mới
         getSupportFragmentManager().beginTransaction()
                 .replace(R.id.fragment_container, fragment)
-                .addToBackStack(null) // Cho phép người dùng nhấn back để quay lại Profile
+                .addToBackStack(null)
                 .commit();
     }
 }

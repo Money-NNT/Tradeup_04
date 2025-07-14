@@ -46,13 +46,15 @@ public class ListingDetailActivity extends AppCompatActivity {
 
     private static final String TAG = "ListingDetailActivity";
 
+    // Views
     private ViewPager2 viewPagerImageSlider;
     private TextView textViewTitleDetail, textViewPriceDetail, textViewTimestamp, textViewDescriptionDetail, textViewSellerName;
     private CircleImageView imageViewSeller;
     private MaterialButton btnSaveListing, btnMakeOffer, btnBuyNow, btnPayNow, btnStartChat;
-    private ImageSliderAdapter imageSliderAdapter;
     private View sellerInfoLayout;
     private LinearLayout bottomActionLayout;
+
+    // Firebase & Data
     private FirebaseFirestore db;
     private ListenerRegistration listingListener;
     private String listingId;
@@ -60,6 +62,9 @@ public class ListingDetailActivity extends AppCompatActivity {
     private DataModels.Listing currentListing = null;
     private boolean isSaved = false;
     private boolean isDataLoaded = false;
+
+    // Others
+    private ImageSliderAdapter imageSliderAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -221,11 +226,10 @@ public class ListingDetailActivity extends AppCompatActivity {
             textViewTimestamp.setText(String.format("Đăng lúc %s tại %s", formattedDate, listing.getLocationName()));
         }
 
-        // Kiểm tra sellerName trước khi setText
         if (listing.getSellerName() != null && !listing.getSellerName().isEmpty()) {
             textViewSellerName.setText(listing.getSellerName());
         } else {
-            textViewSellerName.setText("Người bán ẩn danh"); // Hoặc một giá trị mặc định khác
+            textViewSellerName.setText("Người bán ẩn danh");
         }
 
         if (listing.getSellerPhotoUrl() != null && !listing.getSellerPhotoUrl().isEmpty()) {
@@ -238,11 +242,17 @@ public class ListingDetailActivity extends AppCompatActivity {
         boolean isOwner = currentUser != null && currentUser.getUid().equals(listing.getSellerId());
         boolean isTheBuyer = isSold && currentUser != null && currentUser.getUid().equals(listing.getBuyerId());
 
+        // LOGIC HIỂN THỊ CÁC NÚT ĐÃ ĐƯỢC CẬP NHẬT
+        boolean showActionsForBuyer = !isOwner && !isSold;
+
         btnPayNow.setVisibility(isTheBuyer ? View.VISIBLE : View.GONE);
-        btnBuyNow.setVisibility(!isOwner && !isSold ? View.VISIBLE : View.GONE);
-        btnMakeOffer.setVisibility(!isOwner && !isSold ? View.VISIBLE : View.GONE);
-        btnStartChat.setVisibility(!isOwner ? View.VISIBLE : View.GONE);
-        btnSaveListing.setVisibility(!isOwner ? View.VISIBLE : View.GONE);
+        btnStartChat.setVisibility(showActionsForBuyer ? View.VISIBLE : View.GONE);
+        btnBuyNow.setVisibility(showActionsForBuyer ? View.VISIBLE : View.GONE);
+        btnSaveListing.setVisibility(showActionsForBuyer ? View.VISIBLE : View.GONE);
+
+        // Chỉ hiển thị nút Trả giá khi có thể mua và được phép thương lượng
+        boolean canMakeOffer = showActionsForBuyer && listing.isNegotiable();
+        btnMakeOffer.setVisibility(canMakeOffer ? View.VISIBLE : View.GONE);
 
         if (!isOwner) {
             checkIsSaved();
@@ -361,7 +371,7 @@ public class ListingDetailActivity extends AppCompatActivity {
                     }
                     String buyerName = documentSnapshot.getString("displayName");
                     if (TextUtils.isEmpty(buyerName)) {
-                        buyerName = currentUser.getEmail(); // Dùng email làm phương án dự phòng
+                        buyerName = currentUser.getEmail();
                     }
 
                     DataModels.Offer newOffer = new DataModels.Offer();

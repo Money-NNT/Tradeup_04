@@ -44,11 +44,11 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
+import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.GeoPoint;
@@ -70,6 +70,7 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
     private TextInputEditText editTextTitle, editTextDescription, editTextPrice, editTextLocation;
     private TextInputLayout textInputLayoutLocation;
     private Spinner spinnerCategory, spinnerCondition;
+    private MaterialCheckBox checkBoxNegotiable;
     private Button btnChooseImages, btnSubmitListing;
     private ProgressBar progressBar;
     private TextView textViewScreenTitle;
@@ -133,6 +134,7 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
         editTextTitle = findViewById(R.id.editTextTitle);
         editTextDescription = findViewById(R.id.editTextDescription);
         editTextPrice = findViewById(R.id.editTextPrice);
+        checkBoxNegotiable = findViewById(R.id.checkBoxNegotiable);
         spinnerCategory = findViewById(R.id.spinnerCategory);
         spinnerCondition = findViewById(R.id.spinnerCondition);
         btnChooseImages = findViewById(R.id.btnChooseImages);
@@ -175,6 +177,7 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
     private void prepareEditMode() {
         textViewScreenTitle.setText("Chỉnh sửa tin đăng");
         btnSubmitListing.setText("Lưu thay đổi");
+        btnChooseImages.setVisibility(View.GONE);
         db.collection("listings").document(listingIdToEdit).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
@@ -188,6 +191,7 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
         editTextTitle.setText(listing.getTitle());
         editTextDescription.setText(listing.getDescription());
         editTextPrice.setText(String.valueOf(listing.getPrice()));
+        checkBoxNegotiable.setChecked(listing.isNegotiable());
         editTextLocation.setText(listing.getLocationName());
         currentLocationGeoPoint = listing.getLocationGeoPoint();
         ArrayAdapter<CharSequence> categoryAdapter = (ArrayAdapter<CharSequence>) spinnerCategory.getAdapter();
@@ -295,24 +299,20 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
         if (!validateInput()) {
             return;
         }
-
         if (isEditMode) {
             updateListing();
             return;
         }
-
         if (newImageUris.isEmpty()) {
             Toast.makeText(this, "Vui lòng chọn ít nhất một ảnh.", Toast.LENGTH_SHORT).show();
             return;
         }
-
         Bundle previewData = new Bundle();
         previewData.putString("title", editTextTitle.getText().toString());
         previewData.putString("description", editTextDescription.getText().toString());
         previewData.putLong("price", Long.parseLong(editTextPrice.getText().toString()));
         previewData.putString("location", editTextLocation.getText().toString());
         previewData.putParcelableArrayList("imageUris", newImageUris);
-
         Intent intent = new Intent(this, PreviewListingActivity.class);
         intent.putExtra(PreviewListingActivity.EXTRA_PREVIEW_DATA, previewData);
         previewLauncher.launch(intent);
@@ -336,7 +336,6 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
                     if (documentSnapshot.exists()) {
                         String sellerName = documentSnapshot.getString("displayName");
                         String sellerPhotoUrl = documentSnapshot.getString("photoUrl");
-
                         if (TextUtils.isEmpty(sellerName)) {
                             Toast.makeText(this, "Vui lòng cập nhật tên của bạn trong hồ sơ trước.", Toast.LENGTH_LONG).show();
                             setLoading(false);
@@ -357,7 +356,6 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
     private void uploadImagesToCloudinary(final String sellerName, final String sellerPhotoUrl) {
         final List<String> uploadedImageUrls = Collections.synchronizedList(new ArrayList<>());
         final CountDownLatch latch = new CountDownLatch(newImageUris.size());
-
         for (Uri imageUri : newImageUris) {
             MediaManager.get().upload(imageUri).callback(new UploadCallback() {
                 @Override
@@ -375,7 +373,6 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
                 @Override public void onReschedule(String requestId, ErrorInfo error) {}
             }).dispatch();
         }
-
         new Thread(() -> {
             try {
                 latch.await();
@@ -399,18 +396,16 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
         DataModels.Listing newListing = new DataModels.Listing();
         newListing.setListingId(listingId);
         newListing.setSellerId(currentUser.getUid());
-
         if (TextUtils.isEmpty(sellerName)) {
-            Log.e(TAG, "FATAL: sellerName is null even after fetching! Using email as fallback.");
             newListing.setSellerName(currentUser.getEmail());
         } else {
             newListing.setSellerName(sellerName);
         }
         newListing.setSellerPhotoUrl(sellerPhotoUrl);
-
         newListing.setTitle(editTextTitle.getText().toString().trim());
         newListing.setDescription(editTextDescription.getText().toString().trim());
         newListing.setPrice(Long.parseLong(editTextPrice.getText().toString()));
+        newListing.setNegotiable(checkBoxNegotiable.isChecked());
         newListing.setCategory(spinnerCategory.getSelectedItem().toString());
         newListing.setCondition(spinnerCondition.getSelectedItem().toString());
         newListing.setLocationName(editTextLocation.getText().toString().trim());
@@ -419,7 +414,6 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
         }
         newListing.setImageUrls(imageUrls);
         newListing.setStatus("available");
-
         ArrayList<String> tags = new ArrayList<>();
         String[] titleWords = newListing.getTitle().toLowerCase(Locale.ROOT).split("\\s+");
         for (String word : titleWords) {
@@ -428,7 +422,6 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
             }
         }
         newListing.setTags(tags);
-
         db.collection("listings").document(listingId).set(newListing)
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "Đăng tin thành công!", Toast.LENGTH_SHORT).show();
@@ -442,10 +435,12 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
     }
 
     private void updateListing() {
+        setLoading(true);
         Map<String, Object> updates = new HashMap<>();
         updates.put("title", editTextTitle.getText().toString().trim());
         updates.put("description", editTextDescription.getText().toString().trim());
         updates.put("price", Long.parseLong(editTextPrice.getText().toString()));
+        updates.put("isNegotiable", checkBoxNegotiable.isChecked());
         updates.put("category", spinnerCategory.getSelectedItem().toString());
         updates.put("condition", spinnerCondition.getSelectedItem().toString());
         updates.put("locationName", editTextLocation.getText().toString().trim());
@@ -453,7 +448,6 @@ public class AddListingActivity extends AppCompatActivity implements ImagePrevie
             updates.put("locationGeoPoint", currentLocationGeoPoint);
         }
         updates.put("lastUpdatedAt", FieldValue.serverTimestamp());
-
         db.collection("listings").document(listingIdToEdit).update(updates)
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "Cập nhật thành công!", Toast.LENGTH_SHORT).show();

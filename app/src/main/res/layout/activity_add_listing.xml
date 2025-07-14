@@ -62,6 +62,15 @@
                 android:inputType="number"/>
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- ================== CHECKBOX "CÓ THỂ THƯƠNG LƯỢNG" ĐÃ ĐƯỢC THÊM ================== -->
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/checkBoxNegotiable"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Giá có thể thương lượng" />
+        <!-- ============================================================================== -->
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/textInputLayoutLocation"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
