@@ -1,5 +1,7 @@
 package com.example.baicuoiky04;
 
+import android.app.ProgressDialog;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -13,6 +15,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -20,6 +24,9 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.cloudinary.android.MediaManager;
+import com.cloudinary.android.callback.ErrorInfo;
+import com.cloudinary.android.callback.UploadCallback;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.google.firebase.auth.FirebaseAuth;
@@ -35,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class ChatActivity extends AppCompatActivity {
 
@@ -42,7 +50,7 @@ public class ChatActivity extends AppCompatActivity {
 
     private RecyclerView recyclerViewMessages;
     private EditText editTextMessage;
-    private ImageButton buttonSendMessage;
+    private ImageButton buttonSendMessage, buttonAttachImage;
     private Toolbar toolbar;
     private LinearLayout layoutChatbox;
     private TextView textViewBlocked;
@@ -55,6 +63,8 @@ public class ChatActivity extends AppCompatActivity {
     private String chatId;
     private String receiverId;
     private String receiverName;
+
+    private ActivityResultLauncher<String> pickImageLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,9 +84,19 @@ public class ChatActivity extends AppCompatActivity {
             return;
         }
 
+        initializeLaunchers();
         initViews();
         setupRecyclerView();
         getOrCreateChat();
+    }
+
+    private void initializeLaunchers() {
+        pickImageLauncher = registerForActivityResult(new ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri != null) {
+                        uploadImageToCloudinary(uri);
+                    }
+                });
     }
 
     private void initViews() {
@@ -89,10 +109,12 @@ public class ChatActivity extends AppCompatActivity {
         recyclerViewMessages = findViewById(R.id.recyclerViewMessages);
         editTextMessage = findViewById(R.id.editTextMessage);
         buttonSendMessage = findViewById(R.id.buttonSendMessage);
+        buttonAttachImage = findViewById(R.id.button_attach_image);
         layoutChatbox = findViewById(R.id.layout_chatbox);
         textViewBlocked = findViewById(R.id.textViewBlocked);
 
-        buttonSendMessage.setOnClickListener(v -> sendMessage());
+        buttonSendMessage.setOnClickListener(v -> sendTextMessage());
+        buttonAttachImage.setOnClickListener(v -> openImagePicker());
     }
 
     private void setupRecyclerView() {
@@ -125,6 +147,66 @@ public class ChatActivity extends AppCompatActivity {
         }
         return super.onOptionsItemSelected(item);
     }
+
+    private void openImagePicker() {
+        pickImageLauncher.launch("image/*");
+    }
+
+    private void uploadImageToCloudinary(Uri imageUri) {
+        ProgressDialog progressDialog = new ProgressDialog(this);
+        progressDialog.setMessage("Đang gửi ảnh...");
+        progressDialog.setCancelable(false);
+        progressDialog.show();
+
+        String publicId = "chat_images/" + chatId + "/" + System.currentTimeMillis();
+
+        MediaManager.get().upload(imageUri).option("public_id", publicId)
+                .callback(new UploadCallback() {
+                    @Override
+                    public void onSuccess(String requestId, Map resultData) {
+                        progressDialog.dismiss();
+                        String imageUrl = (String) resultData.get("secure_url");
+                        sendImageMessage(imageUrl);
+                    }
+                    @Override
+                    public void onError(String requestId, ErrorInfo error) {
+                        progressDialog.dismiss();
+                        Toast.makeText(ChatActivity.this, "Gửi ảnh thất bại: " + error.getDescription(), Toast.LENGTH_SHORT).show();
+                    }
+                    @Override public void onStart(String requestId) {}
+                    @Override public void onProgress(String requestId, long bytes, long totalBytes) {}
+                    @Override public void onReschedule(String requestId, ErrorInfo error) {}
+                }).dispatch();
+    }
+
+    private void sendTextMessage() {
+        String messageText = editTextMessage.getText().toString().trim();
+        if (TextUtils.isEmpty(messageText)) return;
+        DataModels.Message message = new DataModels.Message(currentUser.getUid(), messageText);
+        sendMessageToFirestore(message, messageText);
+    }
+
+    private void sendImageMessage(String imageUrl) {
+        DataModels.Message message = new DataModels.Message();
+        message.setSenderId(currentUser.getUid());
+        message.setImageUrl(imageUrl);
+        sendMessageToFirestore(message, "[Hình ảnh]");
+    }
+
+    private void sendMessageToFirestore(DataModels.Message message, String lastMessageText) {
+        WriteBatch batch = db.batch();
+        DocumentReference newMessageRef = db.collection("chats").document(chatId).collection("messages").document();
+        batch.set(newMessageRef, message);
+        DocumentReference chatRef = db.collection("chats").document(chatId);
+        batch.update(chatRef, "lastMessage", lastMessageText);
+        batch.update(chatRef, "lastMessageTimestamp", FieldValue.serverTimestamp());
+        batch.commit().addOnSuccessListener(aVoid -> {
+            if (message.getText() != null) {
+                editTextMessage.setText("");
+            }
+        }).addOnFailureListener(e -> Toast.makeText(this, "Gửi tin nhắn thất bại", Toast.LENGTH_SHORT).show());
+    }
+
 
     private void getOrCreateChat() {
         List<String> uids = Arrays.asList(currentUser.getUid(), receiverId);
