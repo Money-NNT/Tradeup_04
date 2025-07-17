@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -48,6 +49,8 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -66,7 +69,7 @@ public class ProfileFragment extends Fragment {
     private RatingBar ratingBar;
     private LinearLayout ownerActionsLayout;
     private MaterialButton buttonAdminDashboard, buttonEditProfile, buttonLogout, buttonDeactivate, buttonDelete;
-    private MaterialButton buttonPurchaseHistory, buttonSalesHistory, buttonOfferHistory, buttonSavedListings, buttonArchivedListings;
+    private MaterialButton buttonPurchaseHistory, buttonSalesHistory, buttonOfferHistory, buttonSavedListings, buttonArchivedListings, buttonBlockedUsers; // <<< THÊM KHAI BÁO
     private MaterialButton buttonReportUser;
     private RecyclerView recyclerViewReviews;
 
@@ -118,25 +121,6 @@ public class ProfileFragment extends Fragment {
         return fragmentView;
     }
 
-    private void initializeLaunchers() {
-        requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
-            if (isGranted) {
-                openImagePicker();
-            } else {
-                Toast.makeText(getContext(), "Bạn cần cấp quyền để thay đổi ảnh.", Toast.LENGTH_SHORT).show();
-            }
-        });
-        pickImageLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null && result.getData().getData() != null) {
-                Uri imageUri = result.getData().getData();
-                if (getContext() != null) {
-                    Glide.with(getContext()).load(imageUri).into(profileImageView);
-                }
-                uploadImageToCloudinary(imageUri);
-            }
-        });
-    }
-
     @Override
     public void onStart() {
         super.onStart();
@@ -154,6 +138,25 @@ public class ProfileFragment extends Fragment {
         if (userProfileListener != null) {
             userProfileListener.remove();
         }
+    }
+
+    private void initializeLaunchers() {
+        requestPermissionLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+            if (isGranted) {
+                openImagePicker();
+            } else {
+                Toast.makeText(getContext(), "Bạn cần cấp quyền để thay đổi ảnh.", Toast.LENGTH_SHORT).show();
+            }
+        });
+        pickImageLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null && result.getData().getData() != null) {
+                Uri imageUri = result.getData().getData();
+                if (getContext() != null) {
+                    Glide.with(getContext()).load(imageUri).into(profileImageView);
+                }
+                uploadImageToCloudinary(imageUri);
+            }
+        });
     }
 
     private void attachUserProfileListener(String userId) {
@@ -193,6 +196,7 @@ public class ProfileFragment extends Fragment {
         buttonOfferHistory = view.findViewById(R.id.buttonOfferHistory);
         buttonSavedListings = view.findViewById(R.id.buttonSavedListings);
         buttonArchivedListings = view.findViewById(R.id.buttonArchivedListings);
+        buttonBlockedUsers = view.findViewById(R.id.buttonBlockedUsers); // <<< ÁNH XẠ NÚT MỚI
         buttonReportUser = view.findViewById(R.id.buttonReportUser);
         recyclerViewReviews = view.findViewById(R.id.recyclerViewReviews);
         textViewNoReviews = view.findViewById(R.id.textViewNoReviews);
@@ -281,6 +285,14 @@ public class ProfileFragment extends Fragment {
         buttonArchivedListings.setOnClickListener(v -> {
             if (getActivity() != null) startActivity(new Intent(getActivity(), ArchivedListingsActivity.class));
         });
+
+        // <<< THÊM SỰ KIỆN CLICK CHO NÚT MỚI >>>
+        buttonBlockedUsers.setOnClickListener(v -> {
+            if (getActivity() != null) {
+                startActivity(new Intent(getActivity(), BlockedUsersActivity.class));
+            }
+        });
+
         fabChangeImage.setOnClickListener(v -> checkPermissionAndPickImage());
     }
 
@@ -291,7 +303,6 @@ public class ProfileFragment extends Fragment {
         } else {
             permission = Manifest.permission.READ_EXTERNAL_STORAGE;
         }
-
         if (getContext() != null && ContextCompat.checkSelfPermission(requireContext(), permission) == PackageManager.PERMISSION_GRANTED) {
             openImagePicker();
         } else {
@@ -306,14 +317,11 @@ public class ProfileFragment extends Fragment {
 
     private void uploadImageToCloudinary(Uri imageUri) {
         if (getContext() == null || currentUser == null) return;
-
         progressDialog = new ProgressDialog(getContext());
         progressDialog.setMessage("Đang cập nhật ảnh đại diện...");
         progressDialog.setCancelable(false);
         progressDialog.show();
-
         String publicId = "profile_pics/" + currentUser.getUid() + "/" + System.currentTimeMillis();
-
         MediaManager.get().upload(imageUri)
                 .option("public_id", publicId)
                 .option("overwrite", true)
@@ -324,7 +332,6 @@ public class ProfileFragment extends Fragment {
                         Log.d(TAG, "Tải ảnh lên Cloudinary thành công. URL: " + newPhotoUrl);
                         updateAllUserReferences(newPhotoUrl);
                     }
-
                     @Override
                     public void onError(String requestId, ErrorInfo error) {
                         Log.e(TAG, "Lỗi tải ảnh lên Cloudinary: " + error.getDescription());
@@ -333,13 +340,12 @@ public class ProfileFragment extends Fragment {
                             Toast.makeText(getContext(), "Tải ảnh lên thất bại: " + error.getDescription(), Toast.LENGTH_LONG).show();
                         }
                     }
-
                     @Override
-                    public void onReschedule(String requestId, ErrorInfo error) { }
+                    public void onReschedule(String requestId, ErrorInfo error) {}
                     @Override
-                    public void onStart(String requestId) { }
+                    public void onStart(String requestId) {}
                     @Override
-                    public void onProgress(String requestId, long bytes, long totalBytes) { }
+                    public void onProgress(String requestId, long bytes, long totalBytes) {}
                 }).dispatch();
     }
 

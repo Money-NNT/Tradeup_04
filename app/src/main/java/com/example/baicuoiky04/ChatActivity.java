@@ -3,12 +3,18 @@ package com.example.baicuoiky04;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -38,6 +44,9 @@ public class ChatActivity extends AppCompatActivity {
     private EditText editTextMessage;
     private ImageButton buttonSendMessage;
     private Toolbar toolbar;
+    private LinearLayout layoutChatbox;
+    private TextView textViewBlocked;
+
     private MessageAdapter messageAdapter;
     private List<DataModels.Message> messageList;
     private FirebaseFirestore db;
@@ -59,7 +68,7 @@ public class ChatActivity extends AppCompatActivity {
         receiverId = getIntent().getStringExtra("receiver_id");
         receiverName = getIntent().getStringExtra("receiver_name");
 
-        if (currentUser == null || receiverId == null || TextUtils.isEmpty(receiverName)) {
+        if (currentUser == null || receiverId == null || receiverName == null) {
             Toast.makeText(this, "Lỗi: Không thể bắt đầu chat.", Toast.LENGTH_SHORT).show();
             finish();
             return;
@@ -68,8 +77,6 @@ public class ChatActivity extends AppCompatActivity {
         initViews();
         setupRecyclerView();
         getOrCreateChat();
-
-        buttonSendMessage.setOnClickListener(v -> sendMessage());
     }
 
     private void initViews() {
@@ -82,6 +89,10 @@ public class ChatActivity extends AppCompatActivity {
         recyclerViewMessages = findViewById(R.id.recyclerViewMessages);
         editTextMessage = findViewById(R.id.editTextMessage);
         buttonSendMessage = findViewById(R.id.buttonSendMessage);
+        layoutChatbox = findViewById(R.id.layout_chatbox);
+        textViewBlocked = findViewById(R.id.textViewBlocked);
+
+        buttonSendMessage.setOnClickListener(v -> sendMessage());
     }
 
     private void setupRecyclerView() {
@@ -91,6 +102,28 @@ public class ChatActivity extends AppCompatActivity {
         layoutManager.setStackFromEnd(true);
         recyclerViewMessages.setLayoutManager(layoutManager);
         recyclerViewMessages.setAdapter(messageAdapter);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.chat_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int itemId = item.getItemId();
+        if (itemId == android.R.id.home) {
+            onBackPressed();
+            return true;
+        } else if (itemId == R.id.action_report_chat) {
+            reportChat();
+            return true;
+        } else if (itemId == R.id.action_block_user) {
+            confirmBlockUser();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     private void getOrCreateChat() {
@@ -106,6 +139,7 @@ public class ChatActivity extends AppCompatActivity {
                 } else {
                     listenForMessages();
                 }
+                checkBlockStatus();
             } else {
                 Log.e(TAG, "Error checking for chat document", task.getException());
             }
@@ -123,13 +157,13 @@ public class ChatActivity extends AppCompatActivity {
 
             String finalSenderName = senderDoc.exists() ? senderDoc.getString("displayName") : currentUser.getEmail();
             String finalSenderPhoto = senderDoc.exists() ? senderDoc.getString("photoUrl") : "";
-
             String finalReceiverName = receiverDoc.exists() ? receiverDoc.getString("displayName") : this.receiverName;
             String finalReceiverPhoto = receiverDoc.exists() ? receiverDoc.getString("photoUrl") : "";
 
             DataModels.Chat newChat = new DataModels.Chat();
             newChat.setParticipants(Arrays.asList(senderId, receiverId));
             newChat.setLastMessage("Bắt đầu cuộc trò chuyện");
+            newChat.setStatus("active");
 
             if (senderId.compareTo(receiverId) < 0) {
                 newChat.setUser1Id(senderId);
@@ -160,10 +194,7 @@ public class ChatActivity extends AppCompatActivity {
         db.collection("chats").document(chatId).collection("messages")
                 .orderBy("timestamp", Query.Direction.ASCENDING)
                 .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) {
-                        Log.w(TAG, "Listen failed.", e);
-                        return;
-                    }
+                    if (e != null) { Log.w(TAG, "Listen failed.", e); return; }
                     if (snapshots != null) {
                         messageList.clear();
                         messageList.addAll(snapshots.toObjects(DataModels.Message.class));
@@ -176,7 +207,6 @@ public class ChatActivity extends AppCompatActivity {
     private void sendMessage() {
         String messageText = editTextMessage.getText().toString().trim();
         if (TextUtils.isEmpty(messageText)) return;
-
         DataModels.Message message = new DataModels.Message(currentUser.getUid(), messageText);
         WriteBatch batch = db.batch();
         DocumentReference newMessageRef = db.collection("chats").document(chatId).collection("messages").document();
@@ -184,17 +214,76 @@ public class ChatActivity extends AppCompatActivity {
         DocumentReference chatRef = db.collection("chats").document(chatId);
         batch.update(chatRef, "lastMessage", messageText);
         batch.update(chatRef, "lastMessageTimestamp", FieldValue.serverTimestamp());
-
-        batch.commit().addOnSuccessListener(aVoid -> editTextMessage.setText(""))
-                .addOnFailureListener(e -> Toast.makeText(ChatActivity.this, "Gửi tin nhắn thất bại", Toast.LENGTH_SHORT).show());
+        batch.commit().addOnSuccessListener(aVoid -> editTextMessage.setText("")).addOnFailureListener(e -> Toast.makeText(this, "Gửi tin nhắn thất bại", Toast.LENGTH_SHORT).show());
     }
 
-    @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            onBackPressed();
-            return true;
+    private void reportChat() {
+        if (currentUser == null || receiverId == null) return;
+        new AlertDialog.Builder(this)
+                .setTitle("Báo cáo cuộc trò chuyện?")
+                .setMessage("Bạn có chắc muốn báo cáo cuộc trò chuyện này với quản trị viên không?")
+                .setPositiveButton("Báo cáo", (dialog, which) -> {
+                    DataModels.Report report = new DataModels.Report();
+                    report.setReporterId(currentUser.getUid());
+                    report.setReportedUserId(receiverId);
+                    report.setReason("Cuộc trò chuyện không phù hợp");
+                    report.setComment("Báo cáo từ cuộc trò chuyện với: " + receiverName + ". Chat ID: " + chatId);
+                    db.collection("reports").add(report)
+                            .addOnSuccessListener(documentReference -> Toast.makeText(this, "Đã gửi báo cáo.", Toast.LENGTH_SHORT).show())
+                            .addOnFailureListener(e -> Toast.makeText(this, "Gửi báo cáo thất bại.", Toast.LENGTH_SHORT).show());
+                })
+                .setNegativeButton("Hủy", null).show();
+    }
+
+    private void confirmBlockUser() {
+        if (receiverName == null) return;
+        new AlertDialog.Builder(this)
+                .setTitle("Chặn " + receiverName + "?")
+                .setMessage("Bạn sẽ không nhận được tin nhắn từ người này nữa. Bạn có chắc chắn không?")
+                .setPositiveButton("Chặn", (dialog, which) -> blockUser())
+                .setNegativeButton("Hủy", null).show();
+    }
+
+    private void blockUser() {
+        if (currentUser == null || receiverId == null) return;
+        DocumentReference currentUserRef = db.collection("users").document(currentUser.getUid());
+        currentUserRef.update("blockedUsers", FieldValue.arrayUnion(receiverId))
+                .addOnSuccessListener(aVoid -> {
+                    db.collection("chats").document(chatId).update("status", "blocked");
+                    Toast.makeText(this, "Đã chặn người dùng.", Toast.LENGTH_SHORT).show();
+                    updateBlockUI(true, "Bạn đã chặn người dùng này. Mở chặn trong Hồ sơ để tiếp tục.");
+                })
+                .addOnFailureListener(e -> Toast.makeText(this, "Có lỗi xảy ra khi chặn người dùng.", Toast.LENGTH_SHORT).show());
+    }
+
+    private void checkBlockStatus() {
+        db.collection("users").document(currentUser.getUid()).get().addOnSuccessListener(snapshot -> {
+            if (snapshot.exists() && snapshot.get("blockedUsers") != null) {
+                List<String> blockedUsers = (List<String>) snapshot.get("blockedUsers");
+                if (blockedUsers.contains(receiverId)) {
+                    updateBlockUI(true, "Bạn đã chặn người dùng này. Mở chặn trong Hồ sơ để tiếp tục.");
+                    return;
+                }
+            }
+        });
+        db.collection("users").document(receiverId).get().addOnSuccessListener(snapshot -> {
+            if (snapshot.exists() && snapshot.get("blockedUsers") != null) {
+                List<String> blockedUsers = (List<String>) snapshot.get("blockedUsers");
+                if (blockedUsers.contains(currentUser.getUid())) {
+                    updateBlockUI(true, "Bạn đã bị người dùng này chặn.");
+                }
+            }
+        });
+    }
+
+    private void updateBlockUI(boolean isBlocked, String message) {
+        if (isBlocked) {
+            layoutChatbox.setVisibility(View.GONE);
+            textViewBlocked.setVisibility(View.VISIBLE);
+            textViewBlocked.setText(message);
+        } else {
+            layoutChatbox.setVisibility(View.VISIBLE);
+            textViewBlocked.setVisibility(View.GONE);
         }
-        return super.onOptionsItemSelected(item);
     }
 }

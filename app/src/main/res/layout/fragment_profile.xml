@@ -204,7 +204,14 @@
                 android:text="Tin đã lưu"
                 app:icon="@drawable/ic_bookmark_24" />
             <!-- ================================================================= -->
-
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/buttonBlockedUsers"
+                style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Người dùng đã chặn"
+                android:gravity="start|center_vertical"
+                app:icon="@drawable/ic_block_24"/>
         </LinearLayout>
 
         <LinearLayout

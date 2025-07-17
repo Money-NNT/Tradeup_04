@@ -10,6 +10,7 @@ public final class DataModels {
 
     private DataModels() {}
 
+    // ============= CLASS USER ĐÃ ĐƯỢC CẬP NHẬT =============
     public static class User {
         private String uid;
         private String displayName;
@@ -21,6 +22,7 @@ public final class DataModels {
         private long totalReviews;
         private long totalTransactions;
         private List<String> savedListings;
+        private List<String> blockedUsers; // <<< TRƯỜNG MỚI ĐỂ CHẶN
         private String accountStatus;
         private String role;
         @ServerTimestamp
@@ -48,6 +50,10 @@ public final class DataModels {
         public void setTotalTransactions(long totalTransactions) { this.totalTransactions = totalTransactions; }
         public List<String> getSavedListings() { return savedListings; }
         public void setSavedListings(List<String> savedListings) { this.savedListings = savedListings; }
+
+        public List<String> getBlockedUsers() { return blockedUsers; }
+        public void setBlockedUsers(List<String> blockedUsers) { this.blockedUsers = blockedUsers; }
+
         public String getAccountStatus() { return accountStatus; }
         public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
         public Date getCreatedAt() { return createdAt; }
@@ -56,6 +62,7 @@ public final class DataModels {
         public void setRole(String role) { this.role = role; }
     }
 
+    // ... (Các class cũ khác giữ nguyên)
     public static class Report {
         private String reporterId;
         private String reportedUserId;
@@ -174,9 +181,7 @@ public final class DataModels {
         @ServerTimestamp
         private Date createdAt;
         private String status = "visible";
-
         public Review() {}
-
         public String getListingId() { return listingId; }
         public void setListingId(String listingId) { this.listingId = listingId; }
         public String getReviewerId() { return reviewerId; }
@@ -205,9 +210,7 @@ public final class DataModels {
         private String status;
         @ServerTimestamp
         private Date createdAt;
-
         public Offer() {}
-
         public String getBuyerId() { return buyerId; }
         public void setBuyerId(String buyerId) { this.buyerId = buyerId; }
         public String getBuyerName() { return buyerName; }
@@ -224,12 +227,10 @@ public final class DataModels {
         public static final int TYPE_HEADER = 0;
         public static final int TYPE_HORIZONTAL_LIST = 1;
         public static final int TYPE_GRID_LISTING = 2;
-
         public int type;
         public String headerTitle;
         public List<Listing> listings;
         public Listing singleListing;
-
         public HomeFeedItem(int type, String headerTitle) { this.type = type; this.headerTitle = headerTitle; }
         public HomeFeedItem(int type, List<Listing> listings) { this.type = type; this.listings = listings; }
         public HomeFeedItem(int type, Listing listing) { this.type = type; this.singleListing = listing; }
@@ -239,19 +240,17 @@ public final class DataModels {
         private Offer offer;
         private Listing listing;
         private String offerId;
-
         public OfferWithListing(Offer offer, Listing listing, String offerId) {
             this.offer = offer;
             this.listing = listing;
             this.offerId = offerId;
         }
-
         public Offer getOffer() { return offer; }
         public Listing getListing() { return listing; }
         public String getOfferId() { return offerId; }
     }
 
-    // ================== CÁC CLASS MỚI CHO CHỨC NĂNG CHAT ==================
+    // ============= CLASS CHAT ĐÃ ĐƯỢC CẬP NHẬT =============
     public static class Chat {
         private List<String> participants;
         private String lastMessage;
@@ -263,8 +262,11 @@ public final class DataModels {
         private String user2Id;
         private String user2Name;
         private String user2Photo;
+        private String status; // <<< TRƯỜNG MỚI ĐỂ CHẶN
 
-        public Chat() {}
+        public Chat() {
+            this.status = "active"; // Giá trị mặc định
+        }
 
         public List<String> getParticipants() { return participants; }
         public void setParticipants(List<String> participants) { this.participants = participants; }
@@ -284,6 +286,8 @@ public final class DataModels {
         public void setUser2Name(String user2Name) { this.user2Name = user2Name; }
         public String getUser2Photo() { return user2Photo; }
         public void setUser2Photo(String user2Photo) { this.user2Photo = user2Photo; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
     }
 
     public static class Message {
@@ -292,14 +296,11 @@ public final class DataModels {
         private String imageUrl;
         @ServerTimestamp
         private Date timestamp;
-
         public Message() {}
-
         public Message(String senderId, String text) {
             this.senderId = senderId;
             this.text = text;
         }
-
         public String getSenderId() { return senderId; }
         public void setSenderId(String senderId) { this.senderId = senderId; }
         public String getText() { return text; }
@@ -309,5 +310,4 @@ public final class DataModels {
         public Date getTimestamp() { return timestamp; }
         public void setTimestamp(Date timestamp) { this.timestamp = timestamp; }
     }
-    // =======================================================================
 }
