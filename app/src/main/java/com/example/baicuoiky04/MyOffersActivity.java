@@ -27,6 +27,7 @@ import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 
 public class MyOffersActivity extends AppCompatActivity {
 
@@ -97,13 +98,22 @@ public class MyOffersActivity extends AppCompatActivity {
         if (currentUser == null) return;
         progressBar.setVisibility(View.VISIBLE);
 
+        // Dùng addSnapshotListener thay vì get() để dữ liệu được cập nhật real-time
         db.collectionGroup("offers")
                 .whereEqualTo("buyerId", currentUser.getUid())
-                .get()
-                .addOnSuccessListener(offerSnapshots -> {
-                    if (offerSnapshots.isEmpty()) {
+                .addSnapshotListener((offerSnapshots, error) -> {
+                    if (error != null) {
+                        progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Lỗi: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                        Log.e(TAG, "Error fetching offers: ", error);
+                        return;
+                    }
+
+                    if (offerSnapshots == null || offerSnapshots.isEmpty()) {
                         progressBar.setVisibility(View.GONE);
                         textViewEmpty.setVisibility(View.VISIBLE);
+                        offerList.clear();
+                        adapter.notifyDataSetChanged();
                         return;
                     }
 
@@ -128,6 +138,13 @@ public class MyOffersActivity extends AppCompatActivity {
                                 offerList.add(new DataModels.OfferWithListing(offer, listing, offerDoc.getId()));
                             }
                         }
+
+                        // Sắp xếp lại danh sách (ví dụ, ưu tiên "accepted" lên đầu)
+                        Collections.sort(offerList, (o1, o2) -> {
+                            // ... (thêm logic sắp xếp nếu muốn)
+                            return 0; // Tạm thời không sắp xếp
+                        });
+
                         adapter.notifyDataSetChanged();
                         progressBar.setVisibility(View.GONE);
                         if (offerList.isEmpty()){
@@ -136,11 +153,6 @@ public class MyOffersActivity extends AppCompatActivity {
                             textViewEmpty.setVisibility(View.GONE);
                         }
                     });
-                })
-                .addOnFailureListener(e -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    Log.e(TAG, "Error fetching offers: ", e);
                 });
     }
 

@@ -27,7 +27,8 @@
             tools:src="@tools:sample/backgrounds/scenic"
             tools:visibility="visible" />
 
-        <TextView
+        <!-- THAY THẾ <TextView> BẰNG <androidx.appcompat.widget.AppCompatTextView> -->
+        <com.vanniktech.emoji.EmojiTextView
             android:id="@+id/textViewMessage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -38,7 +39,7 @@
             android:textColor="@color/black"
             android:textSize="16sp"
             android:visibility="gone"
-            tools:text="Đây là tin nhắn văn bản."
+            tools:text="Đây là tin nhắn văn bản. 👍"
             tools:visibility="visible"/>
     </LinearLayout>
 </RelativeLayout>

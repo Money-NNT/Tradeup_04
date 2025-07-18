@@ -33,14 +33,12 @@
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         tools:listitem="@layout/list_item_message_sent" />
 
-    <!-- Container cho các view ở dưới cùng -->
     <FrameLayout
         android:id="@+id/bottom_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true">
 
-        <!-- Thông báo bị chặn -->
         <TextView
             android:id="@+id/textViewBlocked"
             android:layout_width="match_parent"
@@ -53,11 +51,12 @@
             android:visibility="gone"
             tools:visibility="visible"/>
 
-        <!-- Khu vực nhập tin nhắn -->
+        <!-- Trong activity_chat.xml -->
         <LinearLayout
             android:id="@+id/layout_chatbox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
             android:background="@color/white"
             android:gravity="center_vertical"
             android:orientation="horizontal"
@@ -67,26 +66,33 @@
             android:paddingBottom="4dp">
 
             <ImageButton
+                android:id="@+id/button_emoji"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_emoji_24"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Emoji"/>
+
+            <ImageButton
                 android:id="@+id/button_attach_image"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Attach Image"
-                android:src="@drawable/ic_image_24"
-                app:tint="@color/colorPrimary" />
+                android:src="@drawable/ic_image_24" />
 
-            <EditText
-                android:id="@+id/editTextMessage"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:background="@drawable/chat_input_background"
-                android:hint="Nhập tin nhắn..."
-                android:inputType="textMultiLine|textCapSentences"
-                android:maxLines="5"
-                android:padding="12dp" />
+            <com.vanniktech.emoji.EmojiEditText
+            android:id="@+id/editTextMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/chat_input_background"
+            android:hint="Nhập tin nhắn..."
+            android:inputType="textMultiLine|textCapSentences"
+            android:maxLines="5"
+            android:padding="12dp" />
 
             <ImageButton
                 android:id="@+id/buttonSendMessage"
@@ -94,10 +100,7 @@
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Send Message"
-                android:src="@drawable/ic_send_24"
-                app:tint="@color/colorPrimary" />
+                android:src="@drawable/ic_send_24" />
         </LinearLayout>
-
     </FrameLayout>
-
 </RelativeLayout>

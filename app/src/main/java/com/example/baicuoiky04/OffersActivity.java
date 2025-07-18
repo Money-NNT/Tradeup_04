@@ -212,7 +212,20 @@ public class OffersActivity extends AppCompatActivity {
         // Commit tất cả thay đổi
         batch.commit().addOnSuccessListener(aVoid -> {
             Toast.makeText(this, "Đã chấp nhận trả giá và đóng tin!", Toast.LENGTH_LONG).show();
+
+            // Tạo thông báo cho người mua
+            DataModels.AppNotification notification = new DataModels.AppNotification();
+            notification.setUserId(acceptedOffer.getBuyerId());
+            notification.setTitle("Trả giá của bạn đã được chấp nhận!");
+            notification.setBody("Người bán đã đồng ý với lời trả giá của bạn. Hãy vào thanh toán ngay!");
+            notification.setListingId(listingId);
+            db.collection("notifications").add(notification);
+
+            // ============= SỬA LỖI Ở ĐÂY =============
+            // Tải lại toàn bộ danh sách offer để cập nhật UI
             loadOffers();
+            // =========================================
+
         }).addOnFailureListener(e -> {
             Toast.makeText(this, "Có lỗi xảy ra: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });

@@ -10,7 +10,6 @@ public final class DataModels {
 
     private DataModels() {}
 
-    // ============= CLASS USER ĐÃ ĐƯỢC CẬP NHẬT =============
     public static class User {
         private String uid;
         private String displayName;
@@ -22,15 +21,18 @@ public final class DataModels {
         private long totalReviews;
         private long totalTransactions;
         private List<String> savedListings;
-        private List<String> blockedUsers; // <<< TRƯỜNG MỚI ĐỂ CHẶN
+        private List<String> blockedUsers;
         private String accountStatus;
         private String role;
+        private String fcmToken;
         @ServerTimestamp
         private Date createdAt;
 
         public User() {}
 
         public String getUid() { return uid; }
+        public String getFcmToken() { return fcmToken; }
+        public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
         public void setUid(String uid) { this.uid = uid; }
         public String getDisplayName() { return displayName; }
         public void setDisplayName(String displayName) { this.displayName = displayName; }
@@ -50,10 +52,8 @@ public final class DataModels {
         public void setTotalTransactions(long totalTransactions) { this.totalTransactions = totalTransactions; }
         public List<String> getSavedListings() { return savedListings; }
         public void setSavedListings(List<String> savedListings) { this.savedListings = savedListings; }
-
         public List<String> getBlockedUsers() { return blockedUsers; }
         public void setBlockedUsers(List<String> blockedUsers) { this.blockedUsers = blockedUsers; }
-
         public String getAccountStatus() { return accountStatus; }
         public void setAccountStatus(String accountStatus) { this.accountStatus = accountStatus; }
         public Date getCreatedAt() { return createdAt; }
@@ -62,7 +62,6 @@ public final class DataModels {
         public void setRole(String role) { this.role = role; }
     }
 
-    // ... (Các class cũ khác giữ nguyên)
     public static class Report {
         private String reporterId;
         private String reportedUserId;
@@ -250,7 +249,6 @@ public final class DataModels {
         public String getOfferId() { return offerId; }
     }
 
-    // ============= CLASS CHAT ĐÃ ĐƯỢC CẬP NHẬT =============
     public static class Chat {
         private List<String> participants;
         private String lastMessage;
@@ -262,12 +260,8 @@ public final class DataModels {
         private String user2Id;
         private String user2Name;
         private String user2Photo;
-        private String status; // <<< TRƯỜNG MỚI ĐỂ CHẶN
-
-        public Chat() {
-            this.status = "active"; // Giá trị mặc định
-        }
-
+        private String status;
+        public Chat() { this.status = "active"; }
         public List<String> getParticipants() { return participants; }
         public void setParticipants(List<String> participants) { this.participants = participants; }
         public String getLastMessage() { return lastMessage; }
@@ -309,5 +303,38 @@ public final class DataModels {
         public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
         public Date getTimestamp() { return timestamp; }
         public void setTimestamp(Date timestamp) { this.timestamp = timestamp; }
+    }
+    public static class AppNotification {
+        private String userId; // ID của người sẽ nhận thông báo
+        private String title;
+        private String body;
+        private boolean isRead = false;
+        @ServerTimestamp
+        private Date createdAt;
+
+        // Các trường tùy chọn để điều hướng khi người dùng bấm vào
+        private String listingId;
+        private String chatId;
+        private String senderId;
+
+        public AppNotification() {}
+
+        // Getters and Setters
+        public String getUserId() { return userId; }
+        public void setUserId(String userId) { this.userId = userId; }
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+        public String getBody() { return body; }
+        public void setBody(String body) { this.body = body; }
+        public boolean isRead() { return isRead; }
+        public void setRead(boolean read) { isRead = read; }
+        public Date getCreatedAt() { return createdAt; }
+        public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
+        public String getListingId() { return listingId; }
+        public void setListingId(String listingId) { this.listingId = listingId; }
+        public String getChatId() { return chatId; }
+        public void setChatId(String chatId) { this.chatId = chatId; }
+        public String getSenderId() { return senderId; }
+        public void setSenderId(String senderId) { this.senderId = senderId; }
     }
 }

@@ -3,12 +3,20 @@ package com.example.baicuoiky04;
 import android.app.Application;
 import android.util.Log;
 
-import com.cloudinary.android.MediaManager; // Thêm import
+import androidx.annotation.Nullable;
+import androidx.core.provider.FontRequest;
+import androidx.emoji2.text.EmojiCompat;
+import androidx.emoji2.text.FontRequestEmojiCompatConfig;
+
+import com.cloudinary.android.MediaManager;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreSettings;
 
-import java.util.HashMap; // Thêm import
-import java.util.Map; // Thêm import
+import java.util.HashMap;
+import java.util.Map;
+
+import com.vanniktech.emoji.EmojiManager;
+import com.vanniktech.emoji.google.GoogleEmojiProvider;
 
 public class YourApplication extends Application {
     private static final String TAG = "YourApplication";
@@ -16,8 +24,8 @@ public class YourApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-
-        // Khởi tạo Firestore (giữ nguyên)
+        EmojiManager.install(new GoogleEmojiProvider());
+        // Khởi tạo Firestore
         try {
             FirebaseFirestore firestore = FirebaseFirestore.getInstance();
             FirebaseFirestoreSettings settings = new FirebaseFirestoreSettings.Builder()
@@ -40,5 +48,27 @@ public class YourApplication extends Application {
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize Cloudinary", e);
         }
+
+        // Khởi tạo EmojiCompat để hiển thị emoji trên các thiết bị cũ
+        FontRequest fontRequest = new FontRequest(
+                "com.google.android.gms.fonts",
+                "com.google.android.gms",
+                "Noto Color Emoji Compat",
+                R.array.com_google_android_gms_fonts_certs);
+
+        EmojiCompat.Config config = new FontRequestEmojiCompatConfig(this, fontRequest)
+                .setReplaceAll(true)
+                .registerInitCallback(new EmojiCompat.InitCallback() {
+                    @Override
+                    public void onInitialized() {
+                        Log.d(TAG, "EmojiCompat initialized successfully.");
+                    }
+
+                    @Override
+                    public void onFailed(@Nullable Throwable throwable) {
+                        Log.e(TAG, "EmojiCompat initialization failed", throwable);
+                    }
+                });
+        EmojiCompat.init(config);
     }
 }

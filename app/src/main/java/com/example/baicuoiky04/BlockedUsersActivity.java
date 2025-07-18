@@ -9,6 +9,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.gms.tasks.Task;
@@ -60,8 +61,14 @@ public class BlockedUsersActivity extends AppCompatActivity {
 
     private void setupRecyclerView() {
         blockedUserList = new ArrayList<>();
-        adapter = new BlockedUserAdapter(this, blockedUserList, user -> unblockUser(user));
-        recyclerView.setAdapter(adapter);
+
+        // Tạo một biến adapter final ngay tại đây
+        final BlockedUserAdapter finalAdapter = new BlockedUserAdapter(this, blockedUserList, this::unblockUser);
+
+        // Gán biến adapter của class bằng biến final
+        this.adapter = finalAdapter;
+
+        recyclerView.setAdapter(finalAdapter);
     }
 
     private void loadBlockedUsers() {
@@ -72,9 +79,11 @@ public class BlockedUsersActivity extends AppCompatActivity {
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists() && documentSnapshot.get("blockedUsers") != null) {
                         List<String> blockedIds = (List<String>) documentSnapshot.get("blockedUsers");
-                        if (blockedIds.isEmpty()) {
+                        if (blockedIds == null || blockedIds.isEmpty()) {
                             progressBar.setVisibility(View.GONE);
                             textViewEmpty.setVisibility(View.VISIBLE);
+                            blockedUserList.clear();
+                            adapter.notifyDataSetChanged();
                             return;
                         }
                         fetchUserDetails(blockedIds);
@@ -98,17 +107,21 @@ public class BlockedUsersActivity extends AppCompatActivity {
                     blockedUserList.add(user);
                 }
             }
-            adapter.notifyDataSetChanged();
+
+            if (recyclerView.getAdapter() != null) {
+                recyclerView.getAdapter().notifyDataSetChanged();
+            }
             progressBar.setVisibility(View.GONE);
+            textViewEmpty.setVisibility(blockedUserList.isEmpty() ? View.VISIBLE : View.GONE);
         });
     }
 
     private void unblockUser(DataModels.User userToUnblock) {
+        if (currentUser == null) return;
         DocumentReference currentUserRef = db.collection("users").document(currentUser.getUid());
         currentUserRef.update("blockedUsers", FieldValue.arrayRemove(userToUnblock.getUid()))
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "Đã mở chặn " + userToUnblock.getDisplayName(), Toast.LENGTH_SHORT).show();
-                    // Tải lại danh sách sau khi mở chặn
                     loadBlockedUsers();
                 })
                 .addOnFailureListener(e -> Toast.makeText(this, "Có lỗi xảy ra.", Toast.LENGTH_SHORT).show());

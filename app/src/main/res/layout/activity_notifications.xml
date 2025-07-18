@@ -4,14 +4,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".BlockedUsersActivity">
+    tools:context=".NotificationsActivity">
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerViewBlockedUsers"
+        android:id="@+id/recyclerViewNotifications"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        tools:listitem="@layout/list_item_blocked_user"/>
+        tools:listitem="@layout/list_item_notification"/>
 
     <ProgressBar
         android:id="@+id/progressBar"
@@ -24,7 +24,7 @@
         android:id="@+id/textViewEmpty"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Bạn chưa chặn người dùng nào."
+        android:text="Bạn chưa có thông báo nào."
         android:layout_gravity="center"
         android:visibility="gone"/>
 </FrameLayout>

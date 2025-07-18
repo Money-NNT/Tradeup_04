@@ -362,21 +362,28 @@ public class ListingDetailActivity extends AppCompatActivity {
     }
 
     private void submitOffer(long offerPrice) {
-        if (currentUser == null || currentListing == null) return;
+        if (currentUser == null || currentListing == null) {
+            Toast.makeText(this, "Không thể gửi trả giá lúc này.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Lấy thông tin mới nhất của người mua (là currentUser) từ Firestore
         db.collection("users").document(currentUser.getUid()).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (!documentSnapshot.exists()) {
                         Toast.makeText(this, "Lỗi không tìm thấy thông tin của bạn", Toast.LENGTH_SHORT).show();
                         return;
                     }
+
                     String buyerName = documentSnapshot.getString("displayName");
                     if (TextUtils.isEmpty(buyerName)) {
-                        buyerName = currentUser.getEmail();
+                        buyerName = currentUser.getEmail(); // Dùng email làm phương án dự phòng
                     }
+                    final String finalBuyerName = buyerName;
 
                     DataModels.Offer newOffer = new DataModels.Offer();
                     newOffer.setBuyerId(currentUser.getUid());
-                    newOffer.setBuyerName(buyerName);
+                    newOffer.setBuyerName(finalBuyerName);
                     newOffer.setOfferPrice(offerPrice);
                     newOffer.setStatus("pending");
 
@@ -384,9 +391,28 @@ public class ListingDetailActivity extends AppCompatActivity {
                     listingRef.collection("offers").add(newOffer)
                             .addOnSuccessListener(docRef -> {
                                 Toast.makeText(this, "Gửi trả giá thành công!", Toast.LENGTH_SHORT).show();
+
+                                // Tăng số lượng offer của sản phẩm
                                 listingRef.update("offersCount", FieldValue.increment(1));
+
+                                // ================== TẠO THÔNG BÁO CHO NGƯỜI BÁN ==================
+                                DataModels.AppNotification notification = new DataModels.AppNotification();
+                                notification.setUserId(currentListing.getSellerId()); // Gửi cho người bán
+                                notification.setTitle("Bạn có trả giá mới!");
+                                notification.setBody(finalBuyerName + " đã trả giá cho sản phẩm '" + currentListing.getTitle() + "'");
+                                notification.setListingId(listingId); // Lưu ID sản phẩm để khi người bán bấm vào sẽ mở đúng trang quản lý offer
+
+                                db.collection("notifications").add(notification)
+                                        .addOnSuccessListener(notificationDoc -> Log.d(TAG, "Đã tạo thông báo cho người bán."))
+                                        .addOnFailureListener(e -> Log.e(TAG, "Lỗi khi tạo thông báo cho người bán", e));
+                                // ===============================================================
                             })
-                            .addOnFailureListener(e -> Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                            .addOnFailureListener(e -> {
+                                Toast.makeText(this, "Lỗi khi gửi trả giá: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Lỗi khi lấy thông tin của bạn: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
     }
 

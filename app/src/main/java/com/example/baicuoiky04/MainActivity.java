@@ -9,6 +9,7 @@ import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.ImageButton; // <<< THÊM IMPORT
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -54,6 +55,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     private HomeFeedAdapter homeFeedAdapter;
     private ProgressBar progressBar;
     private TextView fakeSearchView;
+    private ImageButton btnNotifications; // <<< KHAI BÁO
     private BottomNavigationView bottomNavigationView;
     private FloatingActionButton fabAddItem;
 
@@ -61,7 +63,6 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
     private DocumentSnapshot lastVisible;
     private boolean isLoading = false;
 
-    // Interface để xử lý callback sau khi lấy được vị trí
     interface LocationCallback {
         void onLocationFetched(Location location);
     }
@@ -98,6 +99,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         appBarLayout = findViewById(R.id.appBarLayout);
         progressBar = findViewById(R.id.progressBar);
         fakeSearchView = findViewById(R.id.fakeSearchView);
+        btnNotifications = findViewById(R.id.btnNotifications); // <<< ÁNH XẠ
         bottomNavigationView = findViewById(R.id.bottomNavigationView);
         fabAddItem = findViewById(R.id.fabAddItem);
     }
@@ -110,7 +112,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
         layoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
             @Override
             public int getSpanSize(int position) {
-                if (position < homeFeedItems.size()) {
+                if (position >= 0 && position < homeFeedItems.size()) {
                     int type = homeFeedAdapter.getItemViewType(position);
                     if (type == DataModels.HomeFeedItem.TYPE_HEADER || type == DataModels.HomeFeedItem.TYPE_HORIZONTAL_LIST) {
                         return 2;
@@ -135,6 +137,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
 
     private void setupListeners() {
         fakeSearchView.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, SearchActivity.class)));
+        btnNotifications.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, NotificationsActivity.class))); // <<< THÊM SỰ KIỆN
         fabAddItem.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, AddListingActivity.class)));
         bottomNavigationView.setOnNavigationItemSelectedListener(this);
         bottomNavigationView.setBackground(null);
@@ -149,7 +152,7 @@ public class MainActivity extends AppCompatActivity implements BottomNavigationV
             return true;
         } else if (itemId == R.id.nav_messages) {
             selectedFragment = new ConversationsFragment();
-        } else if (itemId == R.id.nav_manage) {
+        } else if (itemId == R.id.nav_manage) { // <<< TRẢ LẠI ITEM "QUẢN LÝ"
             selectedFragment = new ManageListingsFragment();
         } else if (itemId == R.id.nav_profile) {
             selectedFragment = new ProfileFragment();

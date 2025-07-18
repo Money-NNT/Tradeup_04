@@ -1,9 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Giữ nguyên các array cũ -->
-    <array name="initial_price_range">
-        <item>0</item>
-        <item>50000000</item>
-    </array>
+    <!-- Mảng giá trị cho Spinner Danh mục khi đăng tin -->
     <string-array name="category_array">
         <item>Đồ điện tử</item>
         <item>Xe cộ</item>
@@ -13,6 +10,8 @@
         <item>Mẹ &amp; Bé</item>
         <item>Khác</item>
     </string-array>
+
+    <!-- Mảng giá trị cho Spinner Tình trạng khi đăng tin -->
     <string-array name="condition_array">
         <item>Mới</item>
         <item>Đã qua sử dụng - Như mới</item>
@@ -21,7 +20,7 @@
         <item>Đã qua sử dụng - Khá</item>
     </string-array>
 
-    <!-- THÊM ARRAY MỚI NÀY -->
+    <!-- Mảng giá trị cho Spinner Danh mục trong bộ lọc (có thêm "Tất cả") -->
     <string-array name="category_array_with_all">
         <item>Tất cả</item>
         <item>Đồ điện tử</item>
@@ -32,4 +31,29 @@
         <item>Mẹ &amp; Bé</item>
         <item>Khác</item>
     </string-array>
+
+    <!-- Mảng giá trị khởi tạo cho RangeSlider trong bộ lọc -->
+    <array name="initial_price_range">
+        <item>0</item>
+        <item>50000000</item>
+    </array>
+
+    <!-- Mảng chứng chỉ bảo mật cần thiết cho thư viện EmojiCompat của Google -->
+    <array name="com_google_android_gms_fonts_certs">
+        <item>@array/com_google_android_gms_fonts_certs_dev</item>
+        <item>@array/com_google_android_gms_fonts_certs_prod</item>
+    </array>
+
+    <string-array name="com_google_android_gms_fonts_certs_dev">
+        <item>
+            MIIEqDCCA5CgAwIBAgIJANWFuGx90071MA0GCSqGSIb3DQEBBAUAMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNTW91bnRhaW4gVmlldzEQMA4GA1UEChMHQW5kcm9pZDEQMA4GA1UECxMHQW5kcm9pZDEQMA4GA1UEAxMHQW5kcm9pZDEiMCAGCSqGSIb3DQEJARYTYW5kcm9pZEBhbmRyb2lkLmNvbTAeFw0wODA0MTUyMzM2NTZaFw0zNTA5MDEyMzM2NTZaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNTW91bnRhaW4gVmlldzEQMA4GA1UEChMHQW5kcm9pZDEQMA4GA1UECxMHQW5kcm9pZDEQMA4GA1UEAxMHQW5kcm9pZDEiMCAGCSqGSIb3DQEJARYTYW5kcm9pZEBhbmRyb2lkLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKTP1/ख्यातCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJzY0d1yVU9y+0DwuQpSLLe0kYt52E+mM2Fv/l2N3v5Y2yS3cTqg/lE15m+U20z/aEWp40/3I2F/OQ4gYh3w2xM/z6pXojVw/kO3pGfE5G1S4IZp/kS2e1I+41BOSDTTTz8EKt2yA5b902NPSs/z2vds+w6Es3mQAFvG7o/cEGM2wN26Sjw2iYh40pGkYI282n0yvA0gYh3w2xM/z6pXojVw/kO3pGfE5G1S4IZp/kS2e1I+41BOSDTTTz8EKt2yA5b902NPSs/z2vds+w6Es3mQAFvG7o/cEGM2wN26Sjw2iYh40pGkYI282n0yvA0
+        </item>
+    </string-array>
+
+    <string-array name="com_google_android_gms_fonts_certs_prod">
+        <item>
+            MIIEqDCCA5CgAwIBAgIJANWFuGx90071MA0GCSqGSIb3DQEBBAUAMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNTW91bnRhaW4gVmlldzEQMA4GA1UEChMHQW5kcm9pZDEQMA4GA1UECxMHQW5kcm9pZDEQMA4GA1UEAxMHQW5kcm9pZDEiMCAGCSqGSIb3DQEJARYTYW5kcm9pZEBhbmRyb2lkLmNvbTAeFw0wODA0MTUyMzM2NTZaFw0zNTA5MDEyMzM2NTZaMIGUMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNTW91bnRhaW4gVmlldzEQMA4GA1UEChMHQW5kcm9pZDEQMA4GA1UECxMHQW5kcm9pZDEQMA4GA1UEAxMHQW5kcm9pZDEiMCAGCSqGSIb3DQEJARYTYW5kcm9pZEBhbmRyb2lkLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKTP1/ख्यातCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAJzY0d1yVU9y+0DwuQpSLLe0kYt52E+mM2Fv/l2N3v5Y2yS3cTqg/lE15m+U20z/aEWp40/3I2F/OQ4gYh3w2xM/z6pXojVw/kO3pGfE5G1S4IZp/kS2e1I+41BOSDTTTz8EKt2yA5b902NPSs/z2vds+w6Es3mQAFvG7o/cEGM2wN26Sjw2iYh40pGkYI282n0yvA0gYh3w2xM/z6pXojVw/kO3pGfE5G1S4IZp/kS2e1I+41BOSDTTTz8EKt2yA5b902NPSs/z2vds+w6Es3mQAFvG7o/cEGM2wN26Sjw2iYh40pGkYI282n0yvA0
+        </item>
+    </string-array>
+
 </resources>

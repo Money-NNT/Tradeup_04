@@ -54,7 +54,6 @@ public class ChatActivity extends AppCompatActivity {
     private Toolbar toolbar;
     private LinearLayout layoutChatbox;
     private TextView textViewBlocked;
-
     private MessageAdapter messageAdapter;
     private List<DataModels.Message> messageList;
     private FirebaseFirestore db;
@@ -63,40 +62,26 @@ public class ChatActivity extends AppCompatActivity {
     private String chatId;
     private String receiverId;
     private String receiverName;
-
     private ActivityResultLauncher<String> pickImageLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
-
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
         currentUser = mAuth.getCurrentUser();
-
         receiverId = getIntent().getStringExtra("receiver_id");
         receiverName = getIntent().getStringExtra("receiver_name");
-
         if (currentUser == null || receiverId == null || receiverName == null) {
             Toast.makeText(this, "Lỗi: Không thể bắt đầu chat.", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
-
         initializeLaunchers();
         initViews();
         setupRecyclerView();
         getOrCreateChat();
-    }
-
-    private void initializeLaunchers() {
-        pickImageLauncher = registerForActivityResult(new ActivityResultContracts.GetContent(),
-                uri -> {
-                    if (uri != null) {
-                        uploadImageToCloudinary(uri);
-                    }
-                });
     }
 
     private void initViews() {
@@ -112,7 +97,6 @@ public class ChatActivity extends AppCompatActivity {
         buttonAttachImage = findViewById(R.id.button_attach_image);
         layoutChatbox = findViewById(R.id.layout_chatbox);
         textViewBlocked = findViewById(R.id.textViewBlocked);
-
         buttonSendMessage.setOnClickListener(v -> sendTextMessage());
         buttonAttachImage.setOnClickListener(v -> openImagePicker());
     }
@@ -124,6 +108,15 @@ public class ChatActivity extends AppCompatActivity {
         layoutManager.setStackFromEnd(true);
         recyclerViewMessages.setLayoutManager(layoutManager);
         recyclerViewMessages.setAdapter(messageAdapter);
+    }
+
+    private void initializeLaunchers() {
+        pickImageLauncher = registerForActivityResult(new ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri != null) {
+                        uploadImageToCloudinary(uri);
+                    }
+                });
     }
 
     @Override
@@ -148,6 +141,71 @@ public class ChatActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
+    private void getOrCreateChat() {
+        List<String> uids = Arrays.asList(currentUser.getUid(), receiverId);
+        Collections.sort(uids);
+        chatId = uids.get(0) + "_" + uids.get(1);
+        DocumentReference chatRef = db.collection("chats").document(chatId);
+        chatRef.get().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                if (!task.getResult().exists()) {
+                    createNewChatDocument(chatRef);
+                } else {
+                    listenForMessages();
+                }
+                checkBlockStatus();
+            } else {
+                Log.e(TAG, "Error checking for chat document", task.getException());
+            }
+        });
+    }
+
+    private void createNewChatDocument(DocumentReference chatRef) {
+        final String senderId = currentUser.getUid();
+        Task<DocumentSnapshot> senderTask = db.collection("users").document(senderId).get();
+        Task<DocumentSnapshot> receiverTask = db.collection("users").document(receiverId).get();
+
+        Tasks.whenAllSuccess(senderTask, receiverTask).addOnSuccessListener(results -> {
+            DocumentSnapshot senderDoc = (DocumentSnapshot) results.get(0);
+            DocumentSnapshot receiverDoc = (DocumentSnapshot) results.get(1);
+            String finalSenderName = senderDoc.exists() ? senderDoc.getString("displayName") : currentUser.getEmail();
+            String finalSenderPhoto = senderDoc.exists() ? senderDoc.getString("photoUrl") : "";
+            String finalReceiverName = receiverDoc.exists() ? receiverDoc.getString("displayName") : this.receiverName;
+            String finalReceiverPhoto = receiverDoc.exists() ? receiverDoc.getString("photoUrl") : "";
+            DataModels.Chat newChat = new DataModels.Chat();
+            newChat.setParticipants(Arrays.asList(senderId, receiverId));
+            newChat.setLastMessage("Bắt đầu cuộc trò chuyện");
+            newChat.setStatus("active");
+            if (senderId.compareTo(receiverId) < 0) {
+                newChat.setUser1Id(senderId); newChat.setUser1Name(finalSenderName); newChat.setUser1Photo(finalSenderPhoto);
+                newChat.setUser2Id(receiverId); newChat.setUser2Name(finalReceiverName); newChat.setUser2Photo(finalReceiverPhoto);
+            } else {
+                newChat.setUser1Id(receiverId); newChat.setUser1Name(finalReceiverName); newChat.setUser1Photo(finalReceiverPhoto);
+                newChat.setUser2Id(senderId); newChat.setUser2Name(finalSenderName); newChat.setUser2Photo(finalSenderPhoto);
+            }
+            chatRef.set(newChat)
+                    .addOnSuccessListener(aVoid -> {
+                        Log.d(TAG, "Chat document created successfully.");
+                        listenForMessages();
+                    })
+                    .addOnFailureListener(e -> Log.e(TAG, "Error creating chat document", e));
+        });
+    }
+
+    private void listenForMessages() {
+        db.collection("chats").document(chatId).collection("messages")
+                .orderBy("timestamp", Query.Direction.ASCENDING)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) { Log.w(TAG, "Listen failed.", e); return; }
+                    if (snapshots != null) {
+                        messageList.clear();
+                        messageList.addAll(snapshots.toObjects(DataModels.Message.class));
+                        messageAdapter.notifyDataSetChanged();
+                        recyclerViewMessages.scrollToPosition(messageList.size() - 1);
+                    }
+                });
+    }
+
     private void openImagePicker() {
         pickImageLauncher.launch("image/*");
     }
@@ -157,9 +215,7 @@ public class ChatActivity extends AppCompatActivity {
         progressDialog.setMessage("Đang gửi ảnh...");
         progressDialog.setCancelable(false);
         progressDialog.show();
-
         String publicId = "chat_images/" + chatId + "/" + System.currentTimeMillis();
-
         MediaManager.get().upload(imageUri).option("public_id", publicId)
                 .callback(new UploadCallback() {
                     @Override
@@ -195,108 +251,36 @@ public class ChatActivity extends AppCompatActivity {
 
     private void sendMessageToFirestore(DataModels.Message message, String lastMessageText) {
         WriteBatch batch = db.batch();
+
+        // 1. Thêm tin nhắn mới vào sub-collection (giữ nguyên)
         DocumentReference newMessageRef = db.collection("chats").document(chatId).collection("messages").document();
         batch.set(newMessageRef, message);
+
+        // 2. Cập nhật thông tin cuộc trò chuyện (giữ nguyên)
         DocumentReference chatRef = db.collection("chats").document(chatId);
         batch.update(chatRef, "lastMessage", lastMessageText);
         batch.update(chatRef, "lastMessageTimestamp", FieldValue.serverTimestamp());
+
+        // ============= 3. TẠO DOCUMENT THÔNG BÁO MỚI =============
+        if (currentUser != null) {
+            DataModels.AppNotification notification = new DataModels.AppNotification();
+            notification.setUserId(receiverId); // Gửi đến cho người nhận
+            notification.setTitle("Tin nhắn mới từ " + currentUser.getDisplayName());
+            notification.setBody(lastMessageText);
+            notification.setChatId(chatId); // Lưu lại chatId
+            notification.setSenderId(currentUser.getUid()); // Lưu lại senderId để biết mở chat với ai
+
+            // Tạo một document mới trong collection 'notifications'
+            db.collection("notifications").add(notification);
+        }
+        // ==========================================================
+
+        // 4. Commit tất cả thay đổi
         batch.commit().addOnSuccessListener(aVoid -> {
             if (message.getText() != null) {
                 editTextMessage.setText("");
             }
         }).addOnFailureListener(e -> Toast.makeText(this, "Gửi tin nhắn thất bại", Toast.LENGTH_SHORT).show());
-    }
-
-
-    private void getOrCreateChat() {
-        List<String> uids = Arrays.asList(currentUser.getUid(), receiverId);
-        Collections.sort(uids);
-        chatId = uids.get(0) + "_" + uids.get(1);
-
-        DocumentReference chatRef = db.collection("chats").document(chatId);
-        chatRef.get().addOnCompleteListener(task -> {
-            if (task.isSuccessful()) {
-                if (!task.getResult().exists()) {
-                    createNewChatDocument(chatRef);
-                } else {
-                    listenForMessages();
-                }
-                checkBlockStatus();
-            } else {
-                Log.e(TAG, "Error checking for chat document", task.getException());
-            }
-        });
-    }
-
-    private void createNewChatDocument(DocumentReference chatRef) {
-        final String senderId = currentUser.getUid();
-        Task<DocumentSnapshot> senderTask = db.collection("users").document(senderId).get();
-        Task<DocumentSnapshot> receiverTask = db.collection("users").document(receiverId).get();
-
-        Tasks.whenAllSuccess(senderTask, receiverTask).addOnSuccessListener(results -> {
-            DocumentSnapshot senderDoc = (DocumentSnapshot) results.get(0);
-            DocumentSnapshot receiverDoc = (DocumentSnapshot) results.get(1);
-
-            String finalSenderName = senderDoc.exists() ? senderDoc.getString("displayName") : currentUser.getEmail();
-            String finalSenderPhoto = senderDoc.exists() ? senderDoc.getString("photoUrl") : "";
-            String finalReceiverName = receiverDoc.exists() ? receiverDoc.getString("displayName") : this.receiverName;
-            String finalReceiverPhoto = receiverDoc.exists() ? receiverDoc.getString("photoUrl") : "";
-
-            DataModels.Chat newChat = new DataModels.Chat();
-            newChat.setParticipants(Arrays.asList(senderId, receiverId));
-            newChat.setLastMessage("Bắt đầu cuộc trò chuyện");
-            newChat.setStatus("active");
-
-            if (senderId.compareTo(receiverId) < 0) {
-                newChat.setUser1Id(senderId);
-                newChat.setUser1Name(finalSenderName);
-                newChat.setUser1Photo(finalSenderPhoto);
-                newChat.setUser2Id(receiverId);
-                newChat.setUser2Name(finalReceiverName);
-                newChat.setUser2Photo(finalReceiverPhoto);
-            } else {
-                newChat.setUser1Id(receiverId);
-                newChat.setUser1Name(finalReceiverName);
-                newChat.setUser1Photo(finalReceiverPhoto);
-                newChat.setUser2Id(senderId);
-                newChat.setUser2Name(finalSenderName);
-                newChat.setUser2Photo(finalSenderPhoto);
-            }
-
-            chatRef.set(newChat)
-                    .addOnSuccessListener(aVoid -> {
-                        Log.d(TAG, "Chat document created successfully.");
-                        listenForMessages();
-                    })
-                    .addOnFailureListener(e -> Log.e(TAG, "Error creating chat document", e));
-        });
-    }
-
-    private void listenForMessages() {
-        db.collection("chats").document(chatId).collection("messages")
-                .orderBy("timestamp", Query.Direction.ASCENDING)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) { Log.w(TAG, "Listen failed.", e); return; }
-                    if (snapshots != null) {
-                        messageList.clear();
-                        messageList.addAll(snapshots.toObjects(DataModels.Message.class));
-                        messageAdapter.notifyDataSetChanged();
-                        recyclerViewMessages.scrollToPosition(messageList.size() - 1);
-                    }
-                });
-    }
-
-    private void sendMessage() {
-        String messageText = editTextMessage.getText().toString().trim();
-        if (TextUtils.isEmpty(messageText)) return;
-        DataModels.Message message = new DataModels.Message(currentUser.getUid(), messageText);
-        WriteBatch batch = db.batch();
-        DocumentReference newMessageRef = db.collection("chats").document(chatId).collection("messages").document();
-        batch.set(newMessageRef, message);
-        DocumentReference chatRef = db.collection("chats").document(chatId);
-        batch.update(chatRef, "lastMessage", messageText);
-        batch.update(chatRef, "lastMessageTimestamp", FieldValue.serverTimestamp());
-        batch.commit().addOnSuccessListener(aVoid -> editTextMessage.setText("")).addOnFailureListener(e -> Toast.makeText(this, "Gửi tin nhắn thất bại", Toast.LENGTH_SHORT).show());
     }
 
     private void reportChat() {
@@ -344,7 +328,6 @@ public class ChatActivity extends AppCompatActivity {
                 List<String> blockedUsers = (List<String>) snapshot.get("blockedUsers");
                 if (blockedUsers.contains(receiverId)) {
                     updateBlockUI(true, "Bạn đã chặn người dùng này. Mở chặn trong Hồ sơ để tiếp tục.");
-                    return;
                 }
             }
         });
