@@ -22,7 +22,6 @@ public class OfferAdapter extends RecyclerView.Adapter<OfferAdapter.ViewHolder> 
     public interface OnOfferActionListener {
         void onAccept(DataModels.Offer offer, String offerId);
         void onReject(DataModels.Offer offer, String offerId);
-        void onReview(DataModels.Offer offer);
     }
 
     private Context context;
@@ -70,7 +69,7 @@ public class OfferAdapter extends RecyclerView.Adapter<OfferAdapter.ViewHolder> 
 
     class ViewHolder extends RecyclerView.ViewHolder {
         TextView textViewBuyerName, textViewOfferPrice, textViewStatus;
-        MaterialButton btnAccept, btnReject, btnReview;
+        MaterialButton btnAccept, btnReject;
         LinearLayout layoutActions;
 
         ViewHolder(@NonNull View itemView) {
@@ -81,7 +80,6 @@ public class OfferAdapter extends RecyclerView.Adapter<OfferAdapter.ViewHolder> 
             btnAccept = itemView.findViewById(R.id.btnAccept);
             btnReject = itemView.findViewById(R.id.btnReject);
             layoutActions = itemView.findViewById(R.id.layoutActions);
-            btnReview = itemView.findViewById(R.id.btnReview);
         }
 
         void bind(final DataModels.Offer offer, final String offerId) {
@@ -91,7 +89,6 @@ public class OfferAdapter extends RecyclerView.Adapter<OfferAdapter.ViewHolder> 
 
             btnAccept.setOnClickListener(v -> listener.onAccept(offer, offerId));
             btnReject.setOnClickListener(v -> listener.onReject(offer, offerId));
-            btnReview.setOnClickListener(v -> listener.onReview(offer));
 
             String status = offer.getStatus();
 
@@ -101,20 +98,16 @@ public class OfferAdapter extends RecyclerView.Adapter<OfferAdapter.ViewHolder> 
                 if ("accepted".equalsIgnoreCase(status)) {
                     textViewStatus.setText("ĐÃ CHẤP NHẬN");
                     textViewStatus.setTextColor(ContextCompat.getColor(context, R.color.status_available));
-                    btnReview.setVisibility(View.VISIBLE);
                 } else {
                     textViewStatus.setText("ĐÃ TỪ CHỐI");
                     textViewStatus.setTextColor(ContextCompat.getColor(context, R.color.status_sold));
-                    btnReview.setVisibility(View.GONE);
                 }
             } else {
                 if ("pending".equalsIgnoreCase(status)) {
                     layoutActions.setVisibility(View.VISIBLE);
                     textViewStatus.setVisibility(View.GONE);
-                    btnReview.setVisibility(View.GONE);
                 } else {
                     layoutActions.setVisibility(View.GONE);
-                    btnReview.setVisibility(View.GONE);
                     textViewStatus.setVisibility(View.VISIBLE);
                     textViewStatus.setText("ĐÃ TỪ CHỐI");
                     textViewStatus.setTextColor(ContextCompat.getColor(context, R.color.status_sold));

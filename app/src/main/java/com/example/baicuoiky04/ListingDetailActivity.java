@@ -46,15 +46,13 @@ public class ListingDetailActivity extends AppCompatActivity {
 
     private static final String TAG = "ListingDetailActivity";
 
-    // Views
     private ViewPager2 viewPagerImageSlider;
     private TextView textViewTitleDetail, textViewPriceDetail, textViewTimestamp, textViewDescriptionDetail, textViewSellerName;
     private CircleImageView imageViewSeller;
     private MaterialButton btnSaveListing, btnMakeOffer, btnBuyNow, btnPayNow, btnStartChat;
+    private ImageSliderAdapter imageSliderAdapter;
     private View sellerInfoLayout;
     private LinearLayout bottomActionLayout;
-
-    // Firebase & Data
     private FirebaseFirestore db;
     private ListenerRegistration listingListener;
     private String listingId;
@@ -62,9 +60,6 @@ public class ListingDetailActivity extends AppCompatActivity {
     private DataModels.Listing currentListing = null;
     private boolean isSaved = false;
     private boolean isDataLoaded = false;
-
-    // Others
-    private ImageSliderAdapter imageSliderAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -209,9 +204,7 @@ public class ListingDetailActivity extends AppCompatActivity {
 
     private void updateUI(DataModels.Listing listing) {
         if (isDestroyed()) return;
-
         bottomActionLayout.setVisibility(View.VISIBLE);
-
         if (listing.getImageUrls() != null && !listing.getImageUrls().isEmpty()) {
             imageSliderAdapter = new ImageSliderAdapter(this, listing.getImageUrls());
             viewPagerImageSlider.setAdapter(imageSliderAdapter);
@@ -225,35 +218,24 @@ public class ListingDetailActivity extends AppCompatActivity {
             String formattedDate = sdf.format(listing.getCreatedAt());
             textViewTimestamp.setText(String.format("Đăng lúc %s tại %s", formattedDate, listing.getLocationName()));
         }
-
         if (listing.getSellerName() != null && !listing.getSellerName().isEmpty()) {
             textViewSellerName.setText(listing.getSellerName());
         } else {
             textViewSellerName.setText("Người bán ẩn danh");
         }
-
         if (listing.getSellerPhotoUrl() != null && !listing.getSellerPhotoUrl().isEmpty()) {
             Glide.with(this).load(listing.getSellerPhotoUrl()).placeholder(R.drawable.ic_profile_placeholder).into(imageViewSeller);
         } else {
             imageViewSeller.setImageResource(R.drawable.ic_profile_placeholder);
         }
-
         boolean isSold = "sold".equals(listing.getStatus());
         boolean isOwner = currentUser != null && currentUser.getUid().equals(listing.getSellerId());
         boolean isTheBuyer = isSold && currentUser != null && currentUser.getUid().equals(listing.getBuyerId());
-
-        // LOGIC HIỂN THỊ CÁC NÚT ĐÃ ĐƯỢC CẬP NHẬT
-        boolean showActionsForBuyer = !isOwner && !isSold;
-
         btnPayNow.setVisibility(isTheBuyer ? View.VISIBLE : View.GONE);
-        btnStartChat.setVisibility(showActionsForBuyer ? View.VISIBLE : View.GONE);
-        btnBuyNow.setVisibility(showActionsForBuyer ? View.VISIBLE : View.GONE);
-        btnSaveListing.setVisibility(showActionsForBuyer ? View.VISIBLE : View.GONE);
-
-        // Chỉ hiển thị nút Trả giá khi có thể mua và được phép thương lượng
-        boolean canMakeOffer = showActionsForBuyer && listing.isNegotiable();
-        btnMakeOffer.setVisibility(canMakeOffer ? View.VISIBLE : View.GONE);
-
+        btnBuyNow.setVisibility(!isOwner && !isSold ? View.VISIBLE : View.GONE);
+        btnMakeOffer.setVisibility(!isOwner && !isSold && listing.isNegotiable() ? View.VISIBLE : View.GONE);
+        btnStartChat.setVisibility(!isOwner ? View.VISIBLE : View.GONE);
+        btnSaveListing.setVisibility(!isOwner ? View.VISIBLE : View.GONE);
         if (!isOwner) {
             checkIsSaved();
         }
@@ -271,10 +253,6 @@ public class ListingDetailActivity extends AppCompatActivity {
                     WriteBatch batch = db.batch();
                     DocumentReference listingRef = db.collection("listings").document(listingId);
                     batch.update(listingRef, "status", "sold", "buyerId", currentUser.getUid());
-                    DocumentReference sellerRef = db.collection("users").document(currentListing.getSellerId());
-                    DocumentReference buyerRef = db.collection("users").document(currentUser.getUid());
-                    batch.update(sellerRef, "totalTransactions", FieldValue.increment(1));
-                    batch.update(buyerRef, "totalTransactions", FieldValue.increment(1));
                     batch.commit().addOnSuccessListener(aVoid -> {
                         Toast.makeText(this, "Giao dịch đã được ghi nhận! Chuẩn bị thanh toán...", Toast.LENGTH_SHORT).show();
                         openPaymentActivity();
@@ -286,6 +264,9 @@ public class ListingDetailActivity extends AppCompatActivity {
     private void openPaymentActivity() {
         if (currentListing != null) {
             Intent intent = new Intent(this, PaymentActivity.class);
+            intent.putExtra(PaymentActivity.EXTRA_LISTING_ID, currentListing.getListingId());
+            intent.putExtra(PaymentActivity.EXTRA_SELLER_ID, currentListing.getSellerId());
+            intent.putExtra(PaymentActivity.EXTRA_BUYER_ID, currentUser.getUid());
             intent.putExtra(PaymentActivity.EXTRA_LISTING_NAME, currentListing.getTitle());
             intent.putExtra(PaymentActivity.EXTRA_SELLER_NAME, currentListing.getSellerName());
             intent.putExtra(PaymentActivity.EXTRA_OFFER_PRICE, currentListing.getPrice());
@@ -362,58 +343,41 @@ public class ListingDetailActivity extends AppCompatActivity {
     }
 
     private void submitOffer(long offerPrice) {
-        if (currentUser == null || currentListing == null) {
-            Toast.makeText(this, "Không thể gửi trả giá lúc này.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Lấy thông tin mới nhất của người mua (là currentUser) từ Firestore
+        if (currentUser == null || currentListing == null) return;
         db.collection("users").document(currentUser.getUid()).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (!documentSnapshot.exists()) {
                         Toast.makeText(this, "Lỗi không tìm thấy thông tin của bạn", Toast.LENGTH_SHORT).show();
                         return;
                     }
-
                     String buyerName = documentSnapshot.getString("displayName");
                     if (TextUtils.isEmpty(buyerName)) {
-                        buyerName = currentUser.getEmail(); // Dùng email làm phương án dự phòng
+                        buyerName = currentUser.getEmail();
                     }
                     final String finalBuyerName = buyerName;
-
                     DataModels.Offer newOffer = new DataModels.Offer();
                     newOffer.setBuyerId(currentUser.getUid());
                     newOffer.setBuyerName(finalBuyerName);
                     newOffer.setOfferPrice(offerPrice);
                     newOffer.setStatus("pending");
-
                     DocumentReference listingRef = db.collection("listings").document(listingId);
                     listingRef.collection("offers").add(newOffer)
                             .addOnSuccessListener(docRef -> {
                                 Toast.makeText(this, "Gửi trả giá thành công!", Toast.LENGTH_SHORT).show();
-
-                                // Tăng số lượng offer của sản phẩm
-                                listingRef.update("offersCount", FieldValue.increment(1));
-
-                                // ================== TẠO THÔNG BÁO CHO NGƯỜI BÁN ==================
+                                WriteBatch batch = db.batch();
+                                batch.update(listingRef, "offersCount", FieldValue.increment(1));
                                 DataModels.AppNotification notification = new DataModels.AppNotification();
-                                notification.setUserId(currentListing.getSellerId()); // Gửi cho người bán
+                                notification.setUserId(currentListing.getSellerId());
                                 notification.setTitle("Bạn có trả giá mới!");
                                 notification.setBody(finalBuyerName + " đã trả giá cho sản phẩm '" + currentListing.getTitle() + "'");
-                                notification.setListingId(listingId); // Lưu ID sản phẩm để khi người bán bấm vào sẽ mở đúng trang quản lý offer
-
-                                db.collection("notifications").add(notification)
-                                        .addOnSuccessListener(notificationDoc -> Log.d(TAG, "Đã tạo thông báo cho người bán."))
-                                        .addOnFailureListener(e -> Log.e(TAG, "Lỗi khi tạo thông báo cho người bán", e));
-                                // ===============================================================
+                                notification.setListingId(listingId);
+                                DocumentReference newNotifRef = db.collection("notifications").document();
+                                batch.set(newNotifRef, notification);
+                                batch.commit();
                             })
-                            .addOnFailureListener(e -> {
-                                Toast.makeText(this, "Lỗi khi gửi trả giá: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                            });
+                            .addOnFailureListener(e -> Toast.makeText(this, "Lỗi khi gửi trả giá: " + e.getMessage(), Toast.LENGTH_SHORT).show());
                 })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Lỗi khi lấy thông tin của bạn: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
+                .addOnFailureListener(e -> Toast.makeText(this, "Lỗi khi lấy thông tin của bạn: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 
     private void toggleSaveListing() {

@@ -1,44 +1,35 @@
 package com.example.baicuoiky04;
 
-import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
 import com.bumptech.glide.Glide;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.WriteBatch;
-
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 public class OffersActivity extends AppCompatActivity {
-    private static final String TAG = "OffersActivity";
 
     private ImageView imageViewProduct;
     private TextView textViewTitle, textViewPrice, textViewEmpty;
     private RecyclerView recyclerViewOffers;
     private ProgressBar progressBar;
-
     private OfferAdapter adapter;
     private List<DataModels.Offer> offerList;
     private List<String> offerIdList;
-
     private FirebaseFirestore db;
     private FirebaseUser currentUser;
     private String listingId;
@@ -100,19 +91,9 @@ public class OffersActivity extends AppCompatActivity {
                 }
                 acceptOffer(offer, offerId);
             }
-
             @Override
             public void onReject(DataModels.Offer offer, String offerId) {
                 updateOfferStatus(offerId, "rejected");
-            }
-
-            @Override
-            public void onReview(DataModels.Offer offer) {
-                Intent intent = new Intent(OffersActivity.this, ReviewActivity.class);
-                intent.putExtra("LISTING_ID", listingId);
-                intent.putExtra("USER_ID_TO_REVIEW", offer.getBuyerId());
-                intent.putExtra("USER_NAME_TO_REVIEW", offer.getBuyerName());
-                startActivity(intent);
             }
         };
         adapter = new OfferAdapter(this, offerList, offerIdList, listener);
@@ -126,7 +107,6 @@ public class OffersActivity extends AppCompatActivity {
                     if (doc.exists()) {
                         DataModels.Listing listing = doc.toObject(DataModels.Listing.class);
                         if(listing == null) return;
-
                         textViewTitle.setText(listing.getTitle());
                         NumberFormat formatter = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
                         textViewPrice.setText(formatter.format(listing.getPrice()));
@@ -140,14 +120,12 @@ public class OffersActivity extends AppCompatActivity {
     private void loadOffers() {
         progressBar.setVisibility(View.VISIBLE);
         textViewEmpty.setVisibility(View.GONE);
-
         db.collection("listings").document(listingId).collection("offers")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     offerList.clear();
                     offerIdList.clear();
                     hasAcceptedOffer = false;
-
                     if (queryDocumentSnapshots.isEmpty()) {
                         textViewEmpty.setVisibility(View.VISIBLE);
                     } else {
@@ -180,22 +158,12 @@ public class OffersActivity extends AppCompatActivity {
     }
 
     private void acceptOffer(DataModels.Offer acceptedOffer, String acceptedOfferId) {
-        if (currentUser == null) {
-            Toast.makeText(this, "Lỗi xác thực người dùng.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
+        if (currentUser == null) return;
         WriteBatch batch = db.batch();
-
-        // 1. Cập nhật listing chính
         DocumentReference listingRef = db.collection("listings").document(listingId);
         batch.update(listingRef, "status", "sold", "buyerId", acceptedOffer.getBuyerId());
-
-        // 2. Cập nhật offer được chấp nhận
         DocumentReference acceptedOfferRef = listingRef.collection("offers").document(acceptedOfferId);
         batch.update(acceptedOfferRef, "status", "accepted");
-
-        // 3. Từ chối các offer khác
         for (int i = 0; i < offerIdList.size(); i++) {
             if (!offerIdList.get(i).equals(acceptedOfferId)) {
                 DocumentReference otherOfferRef = listingRef.collection("offers").document(offerIdList.get(i));
@@ -203,31 +171,15 @@ public class OffersActivity extends AppCompatActivity {
             }
         }
 
-        // 4. Tăng totalTransactions cho cả người bán và người mua
-        DocumentReference sellerRef = db.collection("users").document(currentUser.getUid());
-        DocumentReference buyerRef = db.collection("users").document(acceptedOffer.getBuyerId());
-        batch.update(sellerRef, "totalTransactions", FieldValue.increment(1));
-        batch.update(buyerRef, "totalTransactions", FieldValue.increment(1));
-
-        // Commit tất cả thay đổi
         batch.commit().addOnSuccessListener(aVoid -> {
             Toast.makeText(this, "Đã chấp nhận trả giá và đóng tin!", Toast.LENGTH_LONG).show();
-
-            // Tạo thông báo cho người mua
             DataModels.AppNotification notification = new DataModels.AppNotification();
             notification.setUserId(acceptedOffer.getBuyerId());
             notification.setTitle("Trả giá của bạn đã được chấp nhận!");
             notification.setBody("Người bán đã đồng ý với lời trả giá của bạn. Hãy vào thanh toán ngay!");
             notification.setListingId(listingId);
             db.collection("notifications").add(notification);
-
-            // ============= SỬA LỖI Ở ĐÂY =============
-            // Tải lại toàn bộ danh sách offer để cập nhật UI
             loadOffers();
-            // =========================================
-
-        }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Có lỗi xảy ra: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        });
+        }).addOnFailureListener(e -> Toast.makeText(this, "Có lỗi xảy ra: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 }

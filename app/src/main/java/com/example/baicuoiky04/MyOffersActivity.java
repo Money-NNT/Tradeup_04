@@ -1,5 +1,3 @@
-// Dán toàn bộ code này để thay thế file MyOffersActivity.java cũ
-
 package com.example.baicuoiky04;
 
 import android.content.Intent;
@@ -26,8 +24,8 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Collections;
+import java.util.List;
 
 public class MyOffersActivity extends AppCompatActivity {
 
@@ -52,6 +50,11 @@ public class MyOffersActivity extends AppCompatActivity {
 
         initViews();
         setupRecyclerView();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         loadMyOffers();
     }
 
@@ -75,14 +78,14 @@ public class MyOffersActivity extends AppCompatActivity {
         adapter.setOnActionListener(new MyOffersAdapter.OnActionListener() {
             @Override
             public void onPayClicked(DataModels.OfferWithListing item) {
-                // ================== CẬP NHẬT Ở ĐÂY ==================
-                // Mở màn hình thanh toán và truyền dữ liệu đơn hàng sang
                 Intent intent = new Intent(MyOffersActivity.this, PaymentActivity.class);
+                intent.putExtra(PaymentActivity.EXTRA_LISTING_ID, item.getListing().getListingId());
+                intent.putExtra(PaymentActivity.EXTRA_SELLER_ID, item.getListing().getSellerId());
+                intent.putExtra(PaymentActivity.EXTRA_BUYER_ID, currentUser.getUid());
                 intent.putExtra(PaymentActivity.EXTRA_LISTING_NAME, item.getListing().getTitle());
                 intent.putExtra(PaymentActivity.EXTRA_SELLER_NAME, item.getListing().getSellerName());
                 intent.putExtra(PaymentActivity.EXTRA_OFFER_PRICE, item.getOffer().getOfferPrice());
                 startActivity(intent);
-                // ========================================================
             }
 
             @Override
@@ -98,14 +101,12 @@ public class MyOffersActivity extends AppCompatActivity {
         if (currentUser == null) return;
         progressBar.setVisibility(View.VISIBLE);
 
-        // Dùng addSnapshotListener thay vì get() để dữ liệu được cập nhật real-time
         db.collectionGroup("offers")
                 .whereEqualTo("buyerId", currentUser.getUid())
                 .addSnapshotListener((offerSnapshots, error) -> {
                     if (error != null) {
                         progressBar.setVisibility(View.GONE);
                         Toast.makeText(this, "Lỗi: " + error.getMessage(), Toast.LENGTH_SHORT).show();
-                        Log.e(TAG, "Error fetching offers: ", error);
                         return;
                     }
 
@@ -130,28 +131,21 @@ public class MyOffersActivity extends AppCompatActivity {
                         for (int i = 0; i < listingDocs.size(); i++) {
                             DocumentSnapshot listingDoc = (DocumentSnapshot) listingDocs.get(i);
                             DocumentSnapshot offerDoc = offerSnapshots.getDocuments().get(i);
-
                             DataModels.Listing listing = listingDoc.toObject(DataModels.Listing.class);
                             DataModels.Offer offer = offerDoc.toObject(DataModels.Offer.class);
-
                             if (listing != null && offer != null) {
                                 offerList.add(new DataModels.OfferWithListing(offer, listing, offerDoc.getId()));
                             }
                         }
 
-                        // Sắp xếp lại danh sách (ví dụ, ưu tiên "accepted" lên đầu)
                         Collections.sort(offerList, (o1, o2) -> {
-                            // ... (thêm logic sắp xếp nếu muốn)
-                            return 0; // Tạm thời không sắp xếp
+                            if(o1.getOffer().getCreatedAt() == null || o2.getOffer().getCreatedAt() == null) return 0;
+                            return o2.getOffer().getCreatedAt().compareTo(o1.getOffer().getCreatedAt());
                         });
 
                         adapter.notifyDataSetChanged();
                         progressBar.setVisibility(View.GONE);
-                        if (offerList.isEmpty()){
-                            textViewEmpty.setVisibility(View.VISIBLE);
-                        } else {
-                            textViewEmpty.setVisibility(View.GONE);
-                        }
+                        textViewEmpty.setVisibility(offerList.isEmpty() ? View.VISIBLE : View.GONE);
                     });
                 });
     }

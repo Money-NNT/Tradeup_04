@@ -71,16 +71,6 @@
             android:visibility="gone"
             tools:text="ĐÃ CHẤP NHẬN"
             tools:visibility="visible"/>
-        <!-- Thêm vào bên trong <RelativeLayout> trong file list_item_offer.xml -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnReview"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
-            android:text="Đánh giá"
-            android:visibility="gone"
-            tools:visibility="visible"/>
+
     </RelativeLayout>
 </com.google.android.material.card.MaterialCardView>

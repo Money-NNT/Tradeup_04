@@ -13,7 +13,6 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Thông tin sản phẩm (lấy từ document listing) -->
         <TextView
             android:id="@+id/textViewProductTitle"
             android:layout_width="wrap_content"
@@ -23,7 +22,6 @@
             android:textSize="16sp"
             tools:text="iPhone 14 Pro Max"/>
 
-        <!-- Thông tin trả giá -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -57,7 +55,6 @@
                 tools:text="Đã chấp nhận"/>
         </LinearLayout>
 
-        <!-- Các nút hành động -->
         <LinearLayout
             android:id="@+id/layoutActions"
             android:layout_width="match_parent"

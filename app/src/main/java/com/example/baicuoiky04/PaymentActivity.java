@@ -1,11 +1,10 @@
-// Dán toàn bộ code này để thay thế file PaymentActivity.java cũ
-
 package com.example.baicuoiky04;
 
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
@@ -17,6 +16,11 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.WriteBatch;
+
 import java.text.NumberFormat;
 import java.util.Locale;
 
@@ -25,15 +29,23 @@ public class PaymentActivity extends AppCompatActivity {
     public static final String EXTRA_LISTING_NAME = "listing_name";
     public static final String EXTRA_SELLER_NAME = "seller_name";
     public static final String EXTRA_OFFER_PRICE = "offer_price";
+    public static final String EXTRA_LISTING_ID = "listing_id";
+    public static final String EXTRA_SELLER_ID = "seller_id";
+    public static final String EXTRA_BUYER_ID = "buyer_id";
 
     private TextView textViewProductName, textViewSellerName, textViewOfferPrice;
     private Button btnConfirmPayment;
     private ProgressBar progressBar;
 
+    private String listingId, sellerId, buyerId;
+    private FirebaseFirestore db;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_payment);
+
+        db = FirebaseFirestore.getInstance();
 
         initViews();
         populateData();
@@ -45,8 +57,8 @@ public class PaymentActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("Xác nhận Thanh toán");
         }
-
         textViewProductName = findViewById(R.id.textViewProductName);
         textViewSellerName = findViewById(R.id.textViewSellerName);
         textViewOfferPrice = findViewById(R.id.textViewOfferPrice);
@@ -59,6 +71,10 @@ public class PaymentActivity extends AppCompatActivity {
         String sellerName = getIntent().getStringExtra(EXTRA_SELLER_NAME);
         long offerPrice = getIntent().getLongExtra(EXTRA_OFFER_PRICE, 0);
 
+        listingId = getIntent().getStringExtra(EXTRA_LISTING_ID);
+        sellerId = getIntent().getStringExtra(EXTRA_SELLER_ID);
+        buyerId = getIntent().getStringExtra(EXTRA_BUYER_ID);
+
         textViewProductName.setText("Sản phẩm: " + listingName);
         textViewSellerName.setText("Người bán: " + sellerName);
 
@@ -70,33 +86,44 @@ public class PaymentActivity extends AppCompatActivity {
         btnConfirmPayment.setOnClickListener(v -> processPayment());
     }
 
-    // ================== CẬP NHẬT TOÀN BỘ HÀM NÀY ==================
     private void processPayment() {
+        if (TextUtils.isEmpty(sellerId) || TextUtils.isEmpty(buyerId)) {
+            Toast.makeText(this, "Lỗi: Thiếu thông tin giao dịch.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         setLoading(true);
-
+        // Giả lập quá trình thanh toán
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            setLoading(false);
 
-            boolean isPaymentSuccessful = true; // Giả lập thanh toán thành công
+            WriteBatch batch = db.batch();
+            DocumentReference sellerRef = db.collection("users").document(sellerId);
+            DocumentReference buyerRef = db.collection("users").document(buyerId);
 
-            if (isPaymentSuccessful) {
+            batch.update(sellerRef, "totalTransactions", FieldValue.increment(1));
+            batch.update(buyerRef, "totalTransactions", FieldValue.increment(1));
+
+            batch.commit().addOnSuccessListener(aVoid -> {
+                setLoading(false);
                 Toast.makeText(this, "Thanh toán thành công! Cảm ơn bạn đã mua hàng.", Toast.LENGTH_LONG).show();
 
-                // Tạo một Intent để mở MainActivity (Trang chủ)
                 Intent intent = new Intent(this, MainActivity.class);
-
-                // Các cờ này sẽ xóa tất cả các Activity cũ (ListingDetail,...)
-                // và đưa MainActivity lên làm đầu tiên.
                 intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-
                 startActivity(intent);
-                finish(); // Đóng màn hình PaymentActivity hiện tại
-            } else {
-                Toast.makeText(this, "Thanh toán thất bại. Vui lòng thử lại.", Toast.LENGTH_SHORT).show();
-            }
-        }, 3000); // 3 giây
+                finish();
+
+            }).addOnFailureListener(e -> {
+                setLoading(false);
+                Toast.makeText(this, "Thanh toán thành công nhưng có lỗi ghi nhận giao dịch.", Toast.LENGTH_LONG).show();
+                // Dù lỗi ghi nhận vẫn cho về trang chủ
+                Intent intent = new Intent(this, MainActivity.class);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+            });
+
+        }, 2000); // 2 giây
     }
-    // =============================================================
 
     private void setLoading(boolean isLoading) {
         if (isLoading) {

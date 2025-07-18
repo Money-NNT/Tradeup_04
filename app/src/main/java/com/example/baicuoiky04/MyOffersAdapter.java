@@ -24,7 +24,7 @@ public class MyOffersAdapter extends RecyclerView.Adapter<MyOffersAdapter.ViewHo
 
     private List<DataModels.OfferWithListing> offerWithListingList;
     private Context context;
-    private OnActionListener listener; // Thêm biến listener
+    private OnActionListener listener;
 
     public MyOffersAdapter(Context context, List<DataModels.OfferWithListing> list) {
         this.context = context;
@@ -101,15 +101,11 @@ public class MyOffersAdapter extends RecyclerView.Adapter<MyOffersAdapter.ViewHo
             }
 
             btnPay.setOnClickListener(v -> {
-                if (listener != null) {
-                    listener.onPayClicked(item);
-                }
+                if (listener != null) listener.onPayClicked(item);
             });
 
             btnMakeAnotherOffer.setOnClickListener(v -> {
-                if (listener != null) {
-                    listener.onMakeAnotherOfferClicked(item);
-                }
+                if (listener != null) listener.onMakeAnotherOfferClicked(item);
             });
         }
     }
